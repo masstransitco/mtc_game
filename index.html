@@ -44,6 +44,8 @@
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/draco_decoder.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 </head>
 <body>
   <div id="loadingText">Loading... Please wait</div>
@@ -69,12 +71,16 @@
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     scene.add(ambientLight);
 
-    // Load GLTF/GLB models
+    // Loaders
     let loader = new THREE.GLTFLoader();
+    let dracoLoader = new THREE.DRACOLoader();
+    dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/'); // Path to Draco decoder files
+    loader.setDRACOLoader(dracoLoader); // Use DracoLoader with GLTFLoader
+
     let MTC, obstacles = [], score = 0;
     let gameOver = false;
 
-    function loadModel(name, callback) {
+    function loadModel(name, callback, useDraco = false) {
       loader.load(
         name,
         gltf => {
@@ -88,12 +94,12 @@
       );
     }
 
-    // Load the player's car (MTC)
+    // Load the player's car (MTC) with Draco compression enabled
     loadModel("MTC.glb", model => {
       MTC = model;
       MTC.position.set(0, 0.15, 3); // Positioned closer to the bottom for a better third-person view
       scene.add(MTC);
-    });
+    }, true);
 
     // Function to create an obstacle car
     function createObstacle() {
@@ -198,14 +204,4 @@
     // Simulate loading with a timeout (you can replace this with actual loading logic)
     setTimeout(() => {
       document.getElementById('loadingText').style.display = 'none';
-    }, 5000); // 5 seconds for demonstration
-
-    // Handle window resizing
-    window.addEventListener('resize', () => {
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-    });
-  </script>
-</body>
-</html>
+    }, 5000); // 
