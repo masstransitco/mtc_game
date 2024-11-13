@@ -42,9 +42,8 @@
       padding: 10px;
     }
   </style>
-  <!-- Include Three.js, OBJLoader, and GLTFLoader -->
+  <!-- Include Three.js and GLTFLoader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
@@ -71,107 +70,5 @@
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     scene.add(ambientLight);
 
-    // Initialize loaders for OBJ and GLB
-    const objLoader = new THREE.OBJLoader();
-    const gltfLoader = new THREE.GLTFLoader();
-
-    let MTC, obstacles = [], score = 0;
-    let gameOver = false;
-
-    // Load OBJ model
-    function loadOBJModel(name, callback) {
-      objLoader.load(
-        name,
-        obj => {
-          console.log(`Loaded OBJ model: ${name}`);
-          obj.rotation.y = Math.PI; // Rotate model 180 degrees to face away from the camera
-          callback(obj);
-        },
-        undefined,
-        error => console.error("An error occurred loading the OBJ model:", error)
-      );
-    }
-
-    // Load GLB model
-    function loadGLBModel(name, callback) {
-      gltfLoader.load(
-        name,
-        gltf => {
-          console.log(`Loaded GLB model: ${name}`);
-          const model = gltf.scene;
-          model.rotation.y = Math.PI; // Rotate model 180 degrees to face away from the camera
-          callback(model);
-        },
-        undefined,
-        error => console.error("An error occurred loading the GLB model:", error)
-      );
-    }
-
-    // Load the player's car (MTC.obj)
-    loadOBJModel("MTC.obj", obj => {
-      MTC = obj;
-      MTC.position.set(0, 0.15, 3); // Positioned closer to the bottom for a better third-person view
-      scene.add(MTC);
-    });
-
-    // Function to create an obstacle car (.glb files)
-    function createObstacle() {
-      const carModels = ["car1.glb", "car2.glb", "car3.glb"];
-      const randomCar = carModels[Math.floor(Math.random() * carModels.length)];
-      loadGLBModel(randomCar, model => {
-        model.position.set((Math.random() - 0.5) * 2, 0.15, -10 - Math.random() * 20);
-        obstacles.push(model);
-        scene.add(model);
-      });
-    }
-
-    // Road
-    let roadGeometry = new THREE.PlaneGeometry(20, 100);
-    let roadMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
-    let road = new THREE.Mesh(roadGeometry, roadMaterial);
-    road.rotation.x = -Math.PI / 2;
-    scene.add(road);
-
-    // Lane markers
-    let markers = [];
-    for (let i = 0; i < 20; i++) {
-      let markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
-      let markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      let marker = new THREE.Mesh(markerGeometry, markerMaterial);
-      marker.position.set(0, 0.01, -5 * i);
-      markers.push(marker);
-      scene.add(marker);
-    }
-
-    // Movement control variables
-    let moveLeft = false;
-    let moveRight = false;
-
-    // Animate the game
-    function animate() {
-      if (gameOver) return;
-
-      requestAnimationFrame(animate);
-
-      // Move MTC car
-      if (moveLeft && MTC && MTC.position.x > -1) MTC.position.x -= 0.05;
-      if (moveRight && MTC && MTC.position.x < 1) MTC.position.x += 0.05;
-
-      // Move road markers to create forward motion effect
-      markers.forEach(marker => {
-        marker.position.z += 0.1;
-        if (marker.position.z > 5) {
-          marker.position.z = -95;
-        }
-      });
-
-      // Move obstacles and check collisions
-      obstacles.forEach(obstacle => {
-        obstacle.position.z += 0.1;
-        if (obstacle.position.z > 5) {
-          // Passed by the player, increase score
-          score++;
-          document.getElementById("score").textContent = `Score: ${score}`;
-          obstacle.position.z = -10 - Math.random() * 20;
-        }
-        // Check
+    // Initialize GLTFLoader
+    const loader = new
