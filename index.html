@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>2D Sprite Driving Game</title>
   <style>
-    body { margin: 0; overflow: hidden; background-color: #000; }
+    body { margin: 0; overflow: hidden; background-color: black; }
     #loadingText {
       position: absolute;
       bottom: 20px;
@@ -20,20 +20,12 @@
       font-size: 24px;
       color: white;
     }
-    #highScore {
+    #logo {
       position: absolute;
       top: 20px;
       left: 20px;
-      font-size: 24px;
-      color: white;
-    }
-    #instructions {
-      position: absolute;
-      bottom: 60px;
-      width: 100%;
-      text-align: center;
-      font-size: 18px;
-      color: white;
+      height: 40px;
+      width: auto;
     }
     #gameOver {
       display: none;
@@ -49,313 +41,155 @@
       font-size: 18px;
       padding: 10px;
     }
-    canvas {
-      display: block;
-    }
   </style>
+  <!-- Include Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
   <div id="loadingText">Loading... Please wait</div>
-  <div id="highScore">High Score: 0</div>
+  <img id="logo" src="logo.png" alt="Logo">
   <div id="score">Score: 0</div>
-  <div id="instructions">Use Arrow Keys or Touch to Move</div>
   <div id="gameOver">
     <h1>Game Over!</h1>
     <p>Your Score: <span id="finalScore"></span></p>
     <button id="restartButton">Play Again</button>
   </div>
   <script>
-    let canvas, ctx;
-    let player, obstacles = [], powerUps = [];
-    let keys = {};
-    let score = 0, highScore = 0;
-    let gameOver = false;
-    let obstacleSpawnInterval = 2000;
-    let lastObstacleSpawn = 0;
-    let speed = 2;
-    let lastTime = 0;
-    let playerImage, obstacleImages = [], powerUpImage, bgImage;
-    let bgY = 0;
-    let isInvincible = false;
-    let invincibleTimer = 0;
+    let scene, camera, renderer, MTC, obstacles = [], score = 0, gameOver = false;
 
+    // Initialize scene, camera, renderer
     function init() {
-      canvas = document.createElement('canvas');
-      ctx = canvas.getContext('2d');
-      document.body.appendChild(canvas);
-      resizeCanvas();
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 3, 10); // Positioned higher to view the road and obstacles
 
-      // Load images
-      let imagesLoaded = 0;
-      let totalImages = 5;
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-      playerImage = new Image();
-      playerImage.src = 'player_car.png';
-      playerImage.onload = () => { imagesLoaded++; checkImagesLoaded(); };
+      // Add ambient light and directional light for visibility
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      directionalLight.position.set(0, 10, 10).normalize();
+      scene.add(directionalLight);
 
-      obstacleImages[0] = new Image();
-      obstacleImages[0].src = 'obstacle_car1.png';
-      obstacleImages[0].onload = () => { imagesLoaded++; checkImagesLoaded(); };
+      addRoad(); // Adds road and lane markers
+      loadMTCImage(); // Load MTC as a 2D plane
+      setInterval(createObstacle, 2000); // Periodically create obstacles
 
-      obstacleImages[1] = new Image();
-      obstacleImages[1].src = 'obstacle_car2.png';
-      obstacleImages[1].onload = () => { imagesLoaded++; checkImagesLoaded(); };
-
-      powerUpImage = new Image();
-      powerUpImage.src = 'power_up.png';
-      powerUpImage.onload = () => { imagesLoaded++; checkImagesLoaded(); };
-
-      bgImage = new Image();
-      bgImage.src = 'road_bg.png';
-      bgImage.onload = () => { imagesLoaded++; checkImagesLoaded(); };
-
-      function checkImagesLoaded() {
-        if (imagesLoaded === totalImages) {
-          startGame();
-        }
-      }
+      animate(); // Start the animation loop
     }
 
-    function startGame() {
-      document.getElementById('loadingText').style.display = 'none';
-      document.getElementById('instructions').style.display = 'block';
-
-      player = {
-        x: canvas.width / 2 - 25,
-        y: canvas.height - 100,
-        width: 50,
-        height: 100,
-        speed: 5
-      };
-
-      window.addEventListener('keydown', keyDown);
-      window.addEventListener('keyup', keyUp);
-      window.addEventListener('touchstart', touchStart);
-      window.addEventListener('touchmove', touchMove);
-      window.addEventListener('touchend', touchEnd);
-      window.addEventListener('resize', resizeCanvas);
-
-      requestAnimationFrame(gameLoop);
+    // Load MTC as a 2D plane with MTC.png texture
+    function loadMTCImage() {
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load('MTC.png', texture => {
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        const geometry = new THREE.PlaneGeometry(1, 1); // Adjust size as needed
+        MTC = new THREE.Mesh(geometry, material);
+        MTC.position.set(0, 0.5, 3);
+        scene.add(MTC);
+        document.getElementById('loadingText').style.display = 'none';
+      });
     }
 
-    function gameLoop(timestamp) {
+    // Create a random obstacle car (using color boxes as placeholders)
+    function createObstacle() {
       if (gameOver) return;
 
-      let deltaTime = timestamp - lastTime;
-      lastTime = timestamp;
-
-      update(deltaTime);
-      render();
-
-      requestAnimationFrame(gameLoop);
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+      const obstacle = new THREE.Mesh(geometry, material);
+      obstacle.position.set((Math.random() - 0.5) * 2, 0.5, -10 - Math.random() * 20);
+      obstacles.push(obstacle);
+      scene.add(obstacle);
     }
 
-    function update(deltaTime) {
-      // Background scrolling
-      bgY += speed;
-      if (bgY >= canvas.height) bgY = 0;
+    // Road and lane markers
+    function addRoad() {
+      const roadGeometry = new THREE.PlaneGeometry(20, 100);
+      const roadMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+      const road = new THREE.Mesh(roadGeometry, roadMaterial);
+      road.rotation.x = -Math.PI / 2;
+      road.position.y = -0.01; // Slightly below MTC to prevent z-fighting
+      scene.add(road);
 
-      // Player movement
-      if (keys['ArrowLeft'] || keys['a']) {
-        player.x -= player.speed;
-        if (player.x < 0) player.x = 0;
+      const markers = [];
+      for (let i = 0; i < 20; i++) {
+        const markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
+        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.set(0, 0.01, -5 * i);
+        markers.push(marker);
+        scene.add(marker);
       }
-      if (keys['ArrowRight'] || keys['d']) {
-        player.x += player.speed;
-        if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-      }
+    }
 
-      // Spawn obstacles
-      if (timestamp - lastObstacleSpawn > obstacleSpawnInterval) {
-        spawnObstacle();
-        lastObstacleSpawn = timestamp;
-        // Increase speed and difficulty over time
-        speed += 0.1;
-        if (obstacleSpawnInterval > 800) obstacleSpawnInterval -= 50;
-      }
+    // Movement control variables
+    let moveLeft = false;
+    let moveRight = false;
 
-      // Update obstacles
-      obstacles.forEach((obstacle, index) => {
-        obstacle.y += speed;
-        if (obstacle.y > canvas.height) {
-          obstacles.splice(index, 1);
+    // Event listeners for screen tapping or clicking
+    window.addEventListener("mousedown", (event) => {
+      if (event.clientX < window.innerWidth / 2) {
+        moveLeft = true;
+      } else {
+        moveRight = true;
+      }
+    });
+
+    window.addEventListener("mouseup", () => {
+      moveLeft = false;
+      moveRight = false;
+    });
+
+    // Main game loop
+    function animate() {
+      if (gameOver) return;
+
+      requestAnimationFrame(animate);
+
+      // Move MTC car
+      if (moveLeft && MTC && MTC.position.x > -1) MTC.position.x -= 0.05;
+      if (moveRight && MTC && MTC.position.x < 1) MTC.position.x += 0.05;
+
+      // Move obstacles and check for collisions
+      obstacles.forEach(obstacle => {
+        obstacle.position.z += 0.1;
+        if (obstacle.position.z > 5) {
           score++;
-          updateScore();
+          document.getElementById("score").textContent = `Score: ${score}`;
+          obstacle.position.z = -10 - Math.random() * 20;
         }
-        // Check collision
-        if (isColliding(player, obstacle) && !isInvincible) {
+        if (MTC && MTC.position.distanceTo(obstacle.position) < 0.5) {
           endGame();
         }
       });
 
-      // Update power-ups
-      powerUps.forEach((powerUp, index) => {
-        powerUp.y += speed;
-        if (powerUp.y > canvas.height) {
-          powerUps.splice(index, 1);
-        }
-        // Check collision
-        if (isColliding(player, powerUp)) {
-          powerUps.splice(index, 1);
-          activateInvincibility();
-        }
-      });
-
-      // Invincibility timer
-      if (isInvincible) {
-        invincibleTimer -= deltaTime;
-        if (invincibleTimer <= 0) {
-          isInvincible = false;
-        }
-      }
+      renderer.render(scene, camera);
     }
 
-    function render() {
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw background
-      ctx.drawImage(bgImage, 0, bgY - canvas.height, canvas.width, canvas.height);
-      ctx.drawImage(bgImage, 0, bgY, canvas.width, canvas.height);
-
-      // Draw player
-      if (isInvincible) {
-        ctx.globalAlpha = 0.5;
-      }
-      ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
-      ctx.globalAlpha = 1;
-
-      // Draw obstacles
-      obstacles.forEach(obstacle => {
-        ctx.drawImage(obstacle.image, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-      });
-
-      // Draw power-ups
-      powerUps.forEach(powerUp => {
-        ctx.drawImage(powerUpImage, powerUp.x, powerUp.y, powerUp.width, powerUp.height);
-      });
-    }
-
-    function spawnObstacle() {
-      let obstacleWidth = 50;
-      let obstacleHeight = 100;
-      let obstacleX = Math.random() * (canvas.width - obstacleWidth);
-      let obstacleY = -obstacleHeight;
-      let obstacleImage = obstacleImages[Math.floor(Math.random() * obstacleImages.length)];
-
-      obstacles.push({
-        x: obstacleX,
-        y: obstacleY,
-        width: obstacleWidth,
-        height: obstacleHeight,
-        image: obstacleImage
-      });
-
-      // Randomly spawn power-ups
-      if (Math.random() < 0.1) {
-        powerUps.push({
-          x: Math.random() * (canvas.width - 30),
-          y: -30,
-          width: 30,
-          height: 30
-        });
-      }
-    }
-
-    function activateInvincibility() {
-      isInvincible = true;
-      invincibleTimer = 5000; // 5 seconds of invincibility
-    }
-
-    function isColliding(rect1, rect2) {
-      return (
-        rect1.x < rect2.x + rect2.width &&
-        rect1.x + rect1.width > rect2.x &&
-        rect1.y < rect2.y + rect2.height &&
-        rect1.y + rect1.height > rect2.y
-      );
-    }
-
+    // Function to handle game over
     function endGame() {
       gameOver = true;
-      document.getElementById('finalScore').textContent = score;
-      document.getElementById('gameOver').style.display = 'block';
-      document.getElementById('instructions').style.display = 'none';
-      if (score > highScore) {
-        highScore = score;
-        updateHighScore();
-      }
+      document.getElementById("finalScore").textContent = score;
+      document.getElementById("gameOver").style.display = "block";
     }
 
-    function updateScore() {
-      document.getElementById('score').textContent = `Score: ${score}`;
-    }
-
-    function updateHighScore() {
-      document.getElementById('highScore').textContent = `High Score: ${highScore}`;
-    }
-
-    function keyDown(e) {
-      keys[e.key] = true;
-    }
-
-    function keyUp(e) {
-      keys[e.key] = false;
-    }
-
-    function touchStart(e) {
-      let touchX = e.touches[0].clientX;
-      if (touchX < canvas.width / 2) {
-        keys['ArrowLeft'] = true;
-      } else {
-        keys['ArrowRight'] = true;
-      }
-    }
-
-    function touchMove(e) {
-      let touchX = e.touches[0].clientX;
-      if (touchX < canvas.width / 2) {
-        keys['ArrowLeft'] = true;
-        keys['ArrowRight'] = false;
-      } else {
-        keys['ArrowRight'] = true;
-        keys['ArrowLeft'] = false;
-      }
-    }
-
-    function touchEnd(e) {
-      keys['ArrowLeft'] = false;
-      keys['ArrowRight'] = false;
-    }
-
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      if (player) {
-        player.x = canvas.width / 2 - player.width / 2;
-        player.y = canvas.height - player.height - 20;
-      }
-    }
-
-    document.getElementById('restartButton').addEventListener('click', () => {
-      // Reset game state
-      gameOver = false;
-      score = 0;
-      speed = 2;
-      obstacleSpawnInterval = 2000;
-      obstacles = [];
-      powerUps = [];
-      lastObstacleSpawn = 0;
-      isInvincible = false;
-      invincibleTimer = 0;
-      updateScore();
-      document.getElementById('gameOver').style.display = 'none';
-      document.getElementById('instructions').style.display = 'block';
-      lastTime = performance.now();
-      requestAnimationFrame(gameLoop);
+    // Restart button functionality
+    document.getElementById("restartButton").addEventListener("click", () => {
+      location.reload();
     });
 
-    // Start the game
+    // Resize handler
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    // Initialize the game
     init();
   </script>
 </body>
