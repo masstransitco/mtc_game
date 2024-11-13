@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>3D Driving Game</title>
+  <title>2D Sprite Driving Game</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #loadingText {
@@ -42,10 +42,8 @@
       padding: 10px;
     }
   </style>
-  <!-- Include Three.js, GLTFLoader, and DRACOLoader -->
+  <!-- Include Three.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/draco_decoder.js"></script>
 </head>
 <body>
   <div id="loadingText">Loading... Please wait</div>
@@ -58,128 +56,61 @@
   </div>
   <script>
     let scene, camera, renderer, MTC, obstacles = [], score = 0, gameOver = false;
-    let animationId;
-    let markers = [];
-    let obstacleModels = {};
 
     // Initialize scene, camera, renderer
     function init() {
       scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(
-        75,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-      );
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 1, 8);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer = new THREE.WebGLRenderer();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.shadowMap.enabled = true;
       document.body.appendChild(renderer.domElement);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1);
       scene.add(ambientLight);
 
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      directionalLight.position.set(0, 10, 0);
-      directionalLight.castShadow = true;
-      scene.add(directionalLight);
-
-      loadMTCModel(); // Load MTC with Draco compression
-      preloadObstacles(); // Preload obstacle models
-
+      loadMTCImage(); // Load MTC as a 2D plane
       setInterval(createObstacle, 2000); // Periodically create obstacles
 
       animate(); // Start the animation loop
     }
 
-    // Load Draco-compressed MTC model
-    function loadMTCModel() {
-      const loader = new THREE.GLTFLoader();
-      const dracoLoader = new THREE.DRACOLoader();
-      dracoLoader.setDecoderPath(
-        'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/'
-      );
-      loader.setDRACOLoader(dracoLoader);
-
-      loader.load(
-        'MTC.glb',
-        gltf => {
-          MTC = gltf.scene;
-          MTC.position.set(0, 0.15, 3);
-          MTC.rotation.y = Math.PI;
-          MTC.traverse(node => {
-            if (node.isMesh) {
-              node.castShadow = true;
-              node.receiveShadow = true;
-            }
-          });
-          scene.add(MTC);
-          document.getElementById('loadingText').style.display = 'none';
-        },
-        undefined,
-        error => {
-          console.error('Error loading MTC.glb:', error);
-          alert('Failed to load the main car model.');
-        }
-      );
-    }
-
-    // Preload obstacle models
-    function preloadObstacles() {
-      const loader = new THREE.GLTFLoader();
-      const carModels = ['car1.glb', 'car2.glb', 'car3.glb'];
-      carModels.forEach(model => {
-        loader.load(
-          model,
-          gltf => {
-            obstacleModels[model] = gltf.scene;
-          },
-          undefined,
-          error => {
-            console.error('Error loading obstacle model:', error);
-          }
-        );
+    // Load MTC as a 2D plane with MTC.png texture
+    function loadMTCImage() {
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load('MTC.png', texture => {
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        const geometry = new THREE.PlaneGeometry(1, 1); // Adjust size as needed
+        MTC = new THREE.Mesh(geometry, material);
+        MTC.position.set(0, 0.15, 3);
+        scene.add(MTC);
+        document.getElementById('loadingText').style.display = 'none';
       });
     }
 
-    // Create a random obstacle car
+    // Create a random obstacle car (using color boxes as placeholders)
     function createObstacle() {
       if (gameOver) return;
 
-      const carModels = ['car1.glb', 'car2.glb', 'car3.glb'];
-      const randomCar = carModels[Math.floor(Math.random() * carModels.length)];
-
-      const model = obstacleModels[randomCar];
-      if (model) {
-        const obstacle = model.clone();
-        obstacle.position.set(
-          (Math.random() - 0.5) * 2,
-          0.15,
-          -10 - Math.random() * 20
-        );
-        obstacle.traverse(node => {
-          if (node.isMesh) {
-            node.castShadow = true;
-            node.receiveShadow = true;
-          }
-        });
-        obstacles.push(obstacle);
-        scene.add(obstacle);
-      }
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+      const obstacle = new THREE.Mesh(geometry, material);
+      obstacle.position.set((Math.random() - 0.5) * 2, 0.15, -10 - Math.random() * 20);
+      obstacles.push(obstacle);
+      scene.add(obstacle);
     }
 
     // Road and lane markers
     function addRoad() {
-      let roadGeometry = new THREE.PlaneGeometry(20, 200);
-      let roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+      let roadGeometry = new THREE.PlaneGeometry(20, 100);
+      let roadMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
       let road = new THREE.Mesh(roadGeometry, roadMaterial);
       road.rotation.x = -Math.PI / 2;
-      road.receiveShadow = true;
       scene.add(road);
 
-      for (let i = 0; i < 40; i++) {
+      let markers = [];
+      for (let i = 0; i < 20; i++) {
         let markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
         let markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
         let marker = new THREE.Mesh(markerGeometry, markerMaterial);
@@ -189,12 +120,14 @@
       }
     }
 
+    addRoad(); // Add road and lane markers
+
     // Movement control variables
     let moveLeft = false;
     let moveRight = false;
 
     // Event listeners for screen tapping or clicking
-    window.addEventListener('mousedown', event => {
+    window.addEventListener("mousedown", (event) => {
       if (event.clientX < window.innerWidth / 2) {
         moveLeft = true;
       } else {
@@ -202,79 +135,31 @@
       }
     });
 
-    window.addEventListener('mouseup', () => {
+    window.addEventListener("mouseup", () => {
       moveLeft = false;
       moveRight = false;
-    });
-
-    // Touch events for mobile devices
-    window.addEventListener('touchstart', event => {
-      if (event.touches[0].clientX < window.innerWidth / 2) {
-        moveLeft = true;
-      } else {
-        moveRight = true;
-      }
-    });
-
-    window.addEventListener('touchend', () => {
-      moveLeft = false;
-      moveRight = false;
-    });
-
-    // Keyboard controls
-    window.addEventListener('keydown', event => {
-      if (event.key === 'ArrowLeft') moveLeft = true;
-      if (event.key === 'ArrowRight') moveRight = true;
-    });
-
-    window.addEventListener('keyup', event => {
-      if (event.key === 'ArrowLeft') moveLeft = false;
-      if (event.key === 'ArrowRight') moveRight = false;
     });
 
     // Main game loop
     function animate() {
-      if (gameOver) {
-        cancelAnimationFrame(animationId);
-        return;
-      }
+      if (gameOver) return;
 
-      animationId = requestAnimationFrame(animate);
+      requestAnimationFrame(animate);
 
       // Move MTC car
-      if (MTC) {
-        if (moveLeft && MTC.position.x > -1) MTC.position.x -= 0.05;
-        if (moveRight && MTC.position.x < 1) MTC.position.x += 0.05;
-      }
+      if (moveLeft && MTC && MTC.position.x > -1) MTC.position.x -= 0.05;
+      if (moveRight && MTC && MTC.position.x < 1) MTC.position.x += 0.05;
 
       // Move obstacles and check for collisions
-      obstacles = obstacles.filter(obstacle => {
+      obstacles.forEach(obstacle => {
         obstacle.position.z += 0.1;
-
-        // Check for collision
-        if (MTC) {
-          const mtcBox = new THREE.Box3().setFromObject(MTC);
-          const obstacleBox = new THREE.Box3().setFromObject(obstacle);
-          if (mtcBox.intersectsBox(obstacleBox)) {
-            endGame();
-          }
-        }
-
-        // Remove obstacle if it passes the player
         if (obstacle.position.z > 5) {
-          scene.remove(obstacle);
           score++;
-          document.getElementById('score').textContent = `Score: ${score}`;
-          return false; // Remove from obstacles array
+          document.getElementById("score").textContent = `Score: ${score}`;
+          obstacle.position.z = -10 - Math.random() * 20;
         }
-        return true; // Keep in obstacles array
-      });
-
-      // Animate road markers
-      markers.forEach(marker => {
-        marker.position.z += 0.1;
-        if (marker.position.z > 5) {
-          marker.position.z = -100; // Reset position
+        if (MTC && MTC.position.distanceTo(obstacle.position) < 0.5) {
+          endGame();
         }
       });
 
@@ -284,28 +169,14 @@
     // Function to handle game over
     function endGame() {
       gameOver = true;
-      document.getElementById('finalScore').textContent = score;
-      document.getElementById('gameOver').style.display = 'block';
-    }
-
-    // Restart game function
-    function restartGame() {
-      gameOver = false;
-      score = 0;
-      document.getElementById('score').textContent = `Score: ${score}`;
-      document.getElementById('gameOver').style.display = 'none';
-      obstacles.forEach(obstacle => scene.remove(obstacle));
-      obstacles = [];
-      if (MTC) {
-        MTC.position.set(0, 0.15, 3);
-      }
-      animate();
+      document.getElementById("finalScore").textContent = score;
+      document.getElementById("gameOver").style.display = "block";
     }
 
     // Restart button functionality
-    document
-      .getElementById('restartButton')
-      .addEventListener('click', restartGame);
+    document.getElementById("restartButton").addEventListener("click", () => {
+      location.reload();
+    });
 
     // Resize handler
     window.addEventListener('resize', () => {
@@ -316,7 +187,6 @@
 
     // Initialize the game
     init();
-    addRoad(); // Add road and lane markers after initialization
   </script>
 </body>
 </html>
