@@ -42,10 +42,9 @@
       padding: 10px;
     }
   </style>
-  <!-- Include Three.js, GLTFLoader, and DRACOLoader -->
+  <!-- Include Three.js and GLTFLoader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/draco_decoder.js"></script>
 </head>
 <body>
   <div id="loadingText">Loading... Please wait</div>
@@ -71,11 +70,8 @@
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     scene.add(ambientLight);
 
-    // Initialize GLTFLoader and DRACOLoader
+    // Initialize GLTFLoader
     const loader = new THREE.GLTFLoader();
-    const dracoLoader = new THREE.DRACOLoader();
-    dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
-    loader.setDRACOLoader(dracoLoader); // Set DRACOLoader for GLB files
 
     let MTC, obstacles = [], score = 0;
     let gameOver = false;
@@ -94,14 +90,14 @@
       );
     }
 
-    // Load the player's car (MTC.gltf) without compression
+    // Load the player's car (MTC.gltf)
     loadModel("MTC.gltf", model => {
       MTC = model;
       MTC.position.set(0, 0.15, 3); // Positioned closer to the bottom for a better third-person view
       scene.add(MTC);
     });
 
-    // Function to create an obstacle car (.glb files with Draco compression)
+    // Function to create an obstacle car (.glb files without compression)
     function createObstacle() {
       const carModels = ["car1.glb", "car2.glb", "car3.glb"];
       const randomCar = carModels[Math.floor(Math.random() * carModels.length)];
