@@ -116,12 +116,12 @@
 
     // Load the user's car model with a doubled scale
     loader.load(
-      'https://rz8ua7dqyi1bjfre.public.blob.vercel-storage.com/glbmg-00F0uRdkmzZVvlPOjJbnHjpfN2fadq.glb',
+      'https://drive.google.com/uc?export=download&id=1a8dHTOUfA6nvUzcjxEACp0oI0ykTOZWb',
       function (gltf) {
         MTC = gltf.scene;
         MTC.position.set(0, 0.15, 3);
         MTC.rotation.y = Math.PI; // Rotate the user car to face forward
-        MTC.scale.set(1, 1, 1); //Double the scale of the user car
+        MTC.scale.set(1, 1, 1); // Double the scale of the user car
         scene.add(MTC);
         userCarLoaded = true; // Flag to indicate user car has loaded
         document.getElementById('loadingText').style.display = 'none';
