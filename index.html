@@ -2,38 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>2D Sprite Driving Game</title>
+  <title>3D Driving Game</title>
   <style>
-    body { margin: 0; overflow: hidden; background-color: #000; }
-    #loadingText {
+    body { 
+      margin: 0; 
+      overflow: hidden; 
+      font-family: Helvetica, Arial, sans-serif; 
+    }
+    #loadingContainer {
       position: absolute;
       bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      background: #333;
+      border-radius: 5px;
+    }
+    #loadingBar {
+      height: 20px;
+      width: 0;
+      background-color: #4caf50;
+      border-radius: 5px;
+    }
+    #loadingText {
+      position: absolute;
+      bottom: 50px;
       width: 100%;
       text-align: center;
+      font-size: 24px;
+      color: white;
+    }
+    #score, #highScore {
+      position: absolute;
       font-size: 24px;
       color: white;
     }
     #score {
-      position: absolute;
       top: 20px;
       right: 20px;
-      font-size: 24px;
-      color: white;
     }
     #highScore {
+      top: 80px;
+      left: 20px;
+    }
+    #logo {
       position: absolute;
       top: 20px;
       left: 20px;
-      font-size: 24px;
-      color: white;
-    }
-    #instructions {
-      position: absolute;
-      bottom: 60px;
-      width: 100%;
-      text-align: center;
-      font-size: 18px;
-      color: white;
+      height: 40px;
+      width: auto;
     }
     #gameOver {
       display: none;
@@ -49,314 +66,210 @@
       font-size: 18px;
       padding: 10px;
     }
-    canvas {
-      display: block;
+    #continueButton {
+      display: none;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      color: white;
+      cursor: pointer;
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
   <div id="loadingText">Loading... Please wait</div>
-  <div id="highScore">High Score: 0</div>
+  <div id="loadingContainer"><div id="loadingBar"></div></div>
+  <div id="continueButton">Continue →</div>
+  <img id="logo" src="logo.png" alt="Logo">
   <div id="score">Score: 0</div>
-  <div id="instructions">Use Arrow Keys or Touch to Move</div>
+  <div id="highScore">High Score: 0</div>
   <div id="gameOver">
     <h1>Game Over!</h1>
     <p>Your Score: <span id="finalScore"></span></p>
     <button id="restartButton">Play Again</button>
   </div>
   <script>
-    let canvas, ctx;
-    let player, obstacles = [], powerUps = [];
-    let keys = {};
-    let score = 0, highScore = 0;
+    // Basic setup
+    let scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1, 8);
+
+    let renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+    scene.add(ambientLight);
+
+    let loader = new THREE.GLTFLoader();
+    let MTC, obstacles = [], score = 0, highScore = localStorage.getItem('highScore') || 0;
     let gameOver = false;
-    let obstacleSpawnInterval = 2000;
-    let lastObstacleSpawn = 0;
-    let speed = 2;
-    let lastTime = 0;
-    let playerImage, obstacleImages = [], powerUpImage, bgImage;
-    let bgY = 0;
-    let isInvincible = false;
-    let invincibleTimer = 0;
+    let moveLeft = false, moveRight = false;
+    const lanes = [-1, 0, 1];
 
-    function init() {
-      canvas = document.createElement('canvas');
-      ctx = canvas.getContext('2d');
-      document.body.appendChild(canvas);
-      resizeCanvas();
+    document.getElementById("highScore").textContent = `High Score: ${highScore}`;
 
-      // Load images
-      let imagesLoaded = 0;
-      let totalImages = 5;
+    // Load the user's car model
+    loader.load(
+      'https://rz8ua7dqyi1bjfre.public.blob.vercel-storage.com/mtc-iiAB4M5JhM5wbYFOv3745uPs7C73Cq.glb',
+      function (gltf) {
+        MTC = gltf.scene;
+        MTC.position.set(0, 0.15, 3);
+        MTC.rotation.y = Math.PI; // Rotate the user car to face forward
+        scene.add(MTC);
+        document.getElementById('loadingText').style.display = 'none';
+        document.getElementById('loadingContainer').style.display = 'none';
+        document.getElementById('continueButton').style.display = 'block';
+      },
+      undefined,
+      error => console.error('Error loading the model:', error)
+    );
 
-      playerImage = new Image();
-      playerImage.src = 'https://rz8ua7dqyi1bjfre.public.blob.vercel-storage.com/mtc-iiAB4M5JhM5wbYFOv3745uPs7C73Cq.glb';
-      playerImage.onload = () => { imagesLoaded++; checkImagesLoaded(); };
+    // Road and lanes
+    let roadGeometry = new THREE.PlaneGeometry(20, 100);
+    let roadMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    let road = new THREE.Mesh(roadGeometry, roadMaterial);
+    road.rotation.x = -Math.PI / 2;
+    road.position.y = -0.1;
+    scene.add(road);
 
-      obstacleImages[0] = new Image();
-      obstacleImages[0].src = 'obstacle_car1.png';
-      obstacleImages[0].onload = () => { imagesLoaded++; checkImagesLoaded(); };
-
-      obstacleImages[1] = new Image();
-      obstacleImages[1].src = 'obstacle_car2.png';
-      obstacleImages[1].onload = () => { imagesLoaded++; checkImagesLoaded(); };
-
-      powerUpImage = new Image();
-      powerUpImage.src = 'power_up.png';
-      powerUpImage.onload = () => { imagesLoaded++; checkImagesLoaded(); };
-
-      bgImage = new Image();
-      bgImage.src = 'road_bg.png';
-      bgImage.onload = () => { imagesLoaded++; checkImagesLoaded(); };
-
-      function checkImagesLoaded() {
-        if (imagesLoaded === totalImages) {
-          startGame();
-        }
+    // Lane markers
+    let markers = [];
+    for (let i = 0; i < 30; i++) {
+      let markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
+      let markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      for (let lane of lanes) {
+        let marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.set(lane, 0.01, -5 * i);
+        markers.push(marker);
+        scene.add(marker);
       }
     }
 
-    function startGame() {
-      document.getElementById('loadingText').style.display = 'none';
-      document.getElementById('instructions').style.display = 'block';
-
-      player = {
-        x: canvas.width / 2 - 25,
-        y: canvas.height - 100,
-        width: 50,
-        height: 100,
-        speed: 5
-      };
-
-      window.addEventListener('keydown', keyDown);
-      window.addEventListener('keyup', keyUp);
-      window.addEventListener('touchstart', touchStart);
-      window.addEventListener('touchmove', touchMove);
-      window.addEventListener('touchend', touchEnd);
-      window.addEventListener('resize', resizeCanvas);
-
-      requestAnimationFrame(gameLoop);
+    // Create obstacles between lanes
+    function createObstacle() {
+      const obstacleGeometry = new THREE.BoxGeometry(0.7, 0.5, 1.5);
+      const obstacleMaterial = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+      const lanePosition = lanes[Math.floor(Math.random() * lanes.length)];
+      const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+      obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
+      obstacles.push(obstacle);
+      scene.add(obstacle);
     }
 
-    function gameLoop(timestamp) {
+    // Load obstacles periodically
+    setInterval(createObstacle, 2000);
+
+    // Update and render the game
+    function animate() {
       if (gameOver) return;
+      requestAnimationFrame(animate);
 
-      let deltaTime = timestamp - lastTime;
-      lastTime = timestamp;
+      // Move the player's car
+      if (moveLeft && MTC && MTC.position.x > -1) MTC.position.x -= 0.1;
+      if (moveRight && MTC && MTC.position.x < 1) MTC.position.x += 0.1;
 
-      update(deltaTime);
-      render();
-
-      requestAnimationFrame(gameLoop);
-    }
-
-    function update(deltaTime) {
-      // Background scrolling
-      bgY += speed;
-      if (bgY >= canvas.height) bgY = 0;
-
-      // Player movement
-      if (keys['ArrowLeft'] || keys['a']) {
-        player.x -= player.speed;
-        if (player.x < 0) player.x = 0;
-      }
-      if (keys['ArrowRight'] || keys['d']) {
-        player.x += player.speed;
-        if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-      }
-
-      // Spawn obstacles
-      if (timestamp - lastObstacleSpawn > obstacleSpawnInterval) {
-        spawnObstacle();
-        lastObstacleSpawn = timestamp;
-        // Increase speed and difficulty over time
-        speed += 0.1;
-        if (obstacleSpawnInterval > 800) obstacleSpawnInterval -= 50;
-      }
-
-      // Update obstacles
-      obstacles.forEach((obstacle, index) => {
-        obstacle.y += speed;
-        if (obstacle.y > canvas.height) {
-          obstacles.splice(index, 1);
-          score++;
-          updateScore();
+      // Move road markers to create a forward motion effect
+      markers.forEach(marker => {
+        marker.position.z += 0.1;
+        if (marker.position.z > 5) {
+          marker.position.z = -95;
         }
-        // Check collision
-        if (isColliding(player, obstacle) && !isInvincible) {
+      });
+
+      // Move obstacles and check for collisions
+      obstacles.forEach((obstacle, index) => {
+        obstacle.position.z += 0.05;
+        if (obstacle.position.z > 5) {
+          score++;
+          document.getElementById("score").textContent = `Score: ${score}`;
+          obstacle.position.z = -10 - Math.random() * 20;
+          if (score > highScore) {
+            highScore = score;
+            document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+            localStorage.setItem('highScore', highScore);
+          }
+        }
+        if (MTC && MTC.position.distanceTo(obstacle.position) < 0.5) {
           endGame();
         }
       });
 
-      // Update power-ups
-      powerUps.forEach((powerUp, index) => {
-        powerUp.y += speed;
-        if (powerUp.y > canvas.height) {
-          powerUps.splice(index, 1);
-        }
-        // Check collision
-        if (isColliding(player, powerUp)) {
-          powerUps.splice(index, 1);
-          activateInvincibility();
-        }
-      });
-
-      // Invincibility timer
-      if (isInvincible) {
-        invincibleTimer -= deltaTime;
-        if (invincibleTimer <= 0) {
-          isInvincible = false;
-        }
-      }
+      renderer.render(scene, camera);
     }
 
-    function render() {
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    animate();
 
-      // Draw background
-      ctx.drawImage(bgImage, 0, bgY - canvas.height, canvas.width, canvas.height);
-      ctx.drawImage(bgImage, 0, bgY, canvas.width, canvas.height);
-
-      // Draw player
-      if (isInvincible) {
-        ctx.globalAlpha = 0.5;
-      }
-      ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
-      ctx.globalAlpha = 1;
-
-      // Draw obstacles
-      obstacles.forEach(obstacle => {
-        ctx.drawImage(obstacle.image, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-      });
-
-      // Draw power-ups
-      powerUps.forEach(powerUp => {
-        ctx.drawImage(powerUpImage, powerUp.x, powerUp.y, powerUp.width, powerUp.height);
-      });
-    }
-
-    function spawnObstacle() {
-      let obstacleWidth = 50;
-      let obstacleHeight = 100;
-      let obstacleX = Math.random() * (canvas.width - obstacleWidth);
-      let obstacleY = -obstacleHeight;
-      let obstacleImage = obstacleImages[Math.floor(Math.random() * obstacleImages.length)];
-
-      obstacles.push({
-        x: obstacleX,
-        y: obstacleY,
-        width: obstacleWidth,
-        height: obstacleHeight,
-        image: obstacleImage
-      });
-
-      // Randomly spawn power-ups
-      if (Math.random() < 0.1) {
-        powerUps.push({
-          x: Math.random() * (canvas.width - 30),
-          y: -30,
-          width: 30,
-          height: 30
-        });
-      }
-    }
-
-    function activateInvincibility() {
-      isInvincible = true;
-      invincibleTimer = 5000; // 5 seconds of invincibility
-    }
-
-    function isColliding(rect1, rect2) {
-      return (
-        rect1.x < rect2.x + rect2.width &&
-        rect1.x + rect1.width > rect2.x &&
-        rect1.y < rect2.y + rect2.height &&
-        rect1.y + rect1.height > rect2.y
-      );
-    }
-
-    function endGame() {
-      gameOver = true;
-      document.getElementById('finalScore').textContent = score;
-      document.getElementById('gameOver').style.display = 'block';
-      document.getElementById('instructions').style.display = 'none';
-      if (score > highScore) {
-        highScore = score;
-        updateHighScore();
-      }
-    }
-
-    function updateScore() {
-      document.getElementById('score').textContent = `Score: ${score}`;
-    }
-
-    function updateHighScore() {
-      document.getElementById('highScore').textContent = `High Score: ${highScore}`;
-    }
-
-    function keyDown(e) {
-      keys[e.key] = true;
-    }
-
-    function keyUp(e) {
-      keys[e.key] = false;
-    }
-
-    function touchStart(e) {
-      let touchX = e.touches[0].clientX;
-      if (touchX < canvas.width / 2) {
-        keys['ArrowLeft'] = true;
+    // Handle input for screen taps and arrow keys
+    window.addEventListener("mousedown", (event) => {
+      if (event.clientX < window.innerWidth / 2) {
+        moveLeft = true;
       } else {
-        keys['ArrowRight'] = true;
+        moveRight = true;
       }
-    }
-
-    function touchMove(e) {
-      let touchX = e.touches[0].clientX;
-      if (touchX < canvas.width / 2) {
-        keys['ArrowLeft'] = true;
-        keys['ArrowRight'] = false;
-      } else {
-        keys['ArrowRight'] = true;
-        keys['ArrowLeft'] = false;
-      }
-    }
-
-    function touchEnd(e) {
-      keys['ArrowLeft'] = false;
-      keys['ArrowRight'] = false;
-    }
-
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      if (player) {
-        player.x = canvas.width / 2 - player.width / 2;
-        player.y = canvas.height - player.height - 20;
-      }
-    }
-
-    document.getElementById('restartButton').addEventListener('click', () => {
-      // Reset game state
-      gameOver = false;
-      score = 0;
-      speed = 2;
-      obstacleSpawnInterval = 2000;
-      obstacles = [];
-      powerUps = [];
-      lastObstacleSpawn = 0;
-      isInvincible = false;
-      invincibleTimer = 0;
-      updateScore();
-      document.getElementById('gameOver').style.display = 'none';
-      document.getElementById('instructions').style.display = 'block';
-      lastTime = performance.now();
-      requestAnimationFrame(gameLoop);
+    });
+    window.addEventListener("mouseup", () => {
+      moveLeft = false;
+      moveRight = false;
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') moveLeft = true;
+      if (event.key === 'ArrowRight') moveRight = true;
+    });
+    window.addEventListener('keyup', (event) => {
+      if (event.key === 'ArrowLeft') moveLeft = false;
+      if (event.key === 'ArrowRight') moveRight = false;
     });
 
-    // Start the game
-    init();
+    // Game over function
+    function endGame() {
+      gameOver = true;
+      document.getElementById("finalScore").textContent = score;
+      document.getElementById("gameOver").style.display = "block";
+    }
+
+    // Restart button
+    document.getElementById("restartButton").addEventListener("click", () => {
+      location.reload();
+    });
+
+    // Handle window resizing
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    // Progress bar timer simulation
+    function simulateLoading() {
+      const duration = Math.floor(Math.random() * 7000) + 8000; // Random duration between 8-15 seconds
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        const elapsedTime = Date.now() - startTime;
+        const progress = Math.min((elapsedTime / duration) * 100, 100);
+        document.getElementById('loadingBar').style.width = `${progress}%`;
+        if (progress === 100) {
+          clearInterval(interval);
+          document.getElementById('loadingText').style.display = 'none';
+          document.getElementById('loadingContainer').style.display = 'none';
+          document.getElementById('continueButton').style.display = 'block';
+        }
+      }, 100);
+    }
+
+    // Start loading simulation
+    simulateLoading();
+
+    // Continue button to start the game
+    document.getElementById("continueButton").addEventListener("click", () => {
+      document.getElementById("continueButton").style.display = "none";
+      animate();
+    });
   </script>
 </body>
 </html>
