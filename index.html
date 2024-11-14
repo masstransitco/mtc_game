@@ -138,7 +138,7 @@
         obstacleModel,
         (gltf) => {
           const obstacle = gltf.scene;
-          obstacle.scale.set(0.5, 0.5, 0.5); // Adjust scale to match the new user car size
+          obstacle.scale.set(0.25, 0.25, 0.25); // Adjust scale to match the new user car size
           obstacle.position.set(lanes[Math.floor(Math.random() * lanes.length)], 0.15, -10 - Math.random() * 20);
           obstacles.push(obstacle);
           scene.add(obstacle);
