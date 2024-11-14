@@ -120,7 +120,7 @@
         MTC = gltf.scene;
         MTC.position.set(0, 0.15, 3);
         MTC.rotation.y = Math.PI; // Rotate the user car to face forward
-        MTC.scale.set(1, 1, 1); // Double the scale of the user car
+        MTC.scale.set(1.5, 1.5, 1.5); // Double the scale of the user car
         scene.add(MTC);
         document.getElementById('loadingText').style.display = 'none';
         document.getElementById('loadingContainer').style.display = 'none';
@@ -131,7 +131,7 @@
     );
 
     // Load obstacle models with a reduced scale to match the user car
-    const obstacleModels = ['BUS.glb', 'TAXI.glb', 'LGV.glb'];
+    const obstacleModels = ['car2.glb', 'TAXI.glb', 'LGV.glb', 'car3'];
     function createObstacle() {
       const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
       loader.load(
@@ -140,6 +140,7 @@
           const obstacle = gltf.scene;
           obstacle.scale.set(0.25, 0.25, 0.25); // Adjust scale to match the new user car size
           obstacle.position.set(lanes[Math.floor(Math.random() * lanes.length)], 0.15, -10 - Math.random() * 20);
+          obstacle.rotation.y = math.PI // Rotate obstacle cars to face forward
           obstacles.push(obstacle);
           scene.add(obstacle);
         },
