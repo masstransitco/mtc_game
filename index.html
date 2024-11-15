@@ -153,44 +153,54 @@
     // Define obstacle models
     const obstacleModels = ['Bike.glb', 'TAXI.glb', 'LGV.glb', 'Bus.glb'];
 
-    // Create obstacles
-    function createObstacle() {
-      if (!userCarLoaded) return;
+   const loader = new THREE.GLTFLoader();
 
-      const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
-      loader.load(obstacleModel, (gltf) => {
-        const obstacle = gltf.scene;
-        const laneIndex = Math.floor(Math.random() * lanes.length);
-        const lanePosition = lanes[laneIndex];
+function createObstacle() {
+  if (!userCarLoaded) return;
 
-        // Set obstacle properties based on its type
-        switch (obstacleModel) {
-          case 'Bike.glb':
-            obstacle.rotation.y = Math.PI / 2;
-            obstacle.scale.set(0.5, 0.5, 0.5);
-            obstacle.position.set(lanePosition, 0.4, -10 - Math.random() * 20);
-            break;
-          case 'Bus.glb':
-            obstacle.rotation.y = Math.PI;
-            obstacle.scale.set(2, 2.2, 2.2);
-            obstacle.position.set(lanePosition, 0.4, -10 - Math.random() * 20);
-            break;
-          case 'TAXI.glb':
-            obstacle.rotation.y = Math.PI;
-            obstacle.scale.set(0.18, 0.15, 0.18);
-            obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-            break;
-          case 'LGV.glb':
-            obstacle.rotation.y = Math.PI;
-            obstacle.scale.set(0.25, 0.25, 0.25);
-            obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-            break;
-        }
+  const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
+  console.log('Loading obstacle model:', obstacleModel);
 
-        obstacles.push(obstacle);
-        scene.add(obstacle);
-      });
-    }
+  loader.load(
+    obstacleModel,
+    (gltf) => {
+      const obstacle = gltf.scene;
+      const laneIndex = Math.floor(Math.random() * lanes.length);
+      const lanePosition = lanes[laneIndex];
+
+      console.log('Loaded obstacle:', obstacleModel, 'at lane:', lanePosition);
+
+      // Set obstacle properties
+      switch (obstacleModel) {
+        case 'Bike.glb':
+          obstacle.rotation.y = Math.PI / 2;
+          obstacle.scale.set(0.5, 0.5, 0.5);
+          break;
+        case 'Bus.glb':
+          obstacle.rotation.y = Math.PI;
+          obstacle.scale.set(2, 2.2, 2.2);
+          break;
+        case 'TAXI.glb':
+          obstacle.rotation.y = Math.PI;
+          obstacle.scale.set(0.18, 0.15, 0.18);
+          break;
+        case 'LGV.glb':
+          obstacle.rotation.y = Math.PI;
+          obstacle.scale.set(0.25, 0.25, 0.25);
+          break;
+      }
+
+      obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
+      console.log('Final obstacle position:', obstacle.position);
+
+      obstacles.push(obstacle);
+      scene.add(obstacle);
+    },
+    undefined,
+    (error) => console.error('Error loading obstacle:', obstacleModel, error)
+  );
+}
+
 
     // Spawn obstacles periodically
     setInterval(createObstacle, 3000);
