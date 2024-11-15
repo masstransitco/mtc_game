@@ -148,30 +148,39 @@
           const lanePosition = lanes[laneIndex];
 
 
-          //set Bike obstacle rotation based on model
+          //set Bike obstacle rotation and size
           if (obstacleModel === 'Bike.glb') {
             obstacle.rotation.y = -Math.PI / 2;
             obstacle.scale.set(0.5, 0.5, 0.5);
           } else {
+            obstacle.rotation.y = Math.PI;
             obstacle.scale.set(0.25, 0.25, 0.25);
           }
 
-          //set Bus obstacle size based on model
+          //set Bus obstacle rotation and size
           if (obstacleModel === 'Bus.glb') {
             obstacle.rotation.y = Math.PI
-            obstacle.scale.set(1.5, 1.5, 1.5);
+            obstacle.scale.set(1.5, 1.7, 1.7);
+            obstacle.position.set(lanePosition, 0.2, -10 - Math.random() * 20);
           } else { 
             obstacle.scale.set(0.25, 0.25, 0.25);
+            obstacle.position.set(lanePosition, 0.15, -10 - Math.random() *20);
           }
 
-
+          //set Taxi obstacle rotation and size
+          if (obstacleModel === 'TAXI.glb') {
+            obstacle.scale.set(0.2, 0.18, 0.22);
+          } else {
+            obstacle.scale.set(0.25, 0.25, 0.25);
+          }
+          
         
 
           obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
           obstacle.rotation.y = Math.PI; // Rotate obstacle cars to face forward
 
           // Ensure obstacles do not overlap by keeping track of occupied lanes
-          if (!obstacles.some(obs => obs.position.x === lanePosition && obs.position.z < -5)) {
+          if (!obstacles.some(obs => obs.position.x === lanePosition && obs.position.z < -6)) {
             obstacles.push(obstacle);
             scene.add(obstacle);
           }
