@@ -120,7 +120,7 @@
       function (gltf) {
         MTC = gltf.scene;
         MTC.position.set(0, 0.15, 3);
-        MTC.rotation.y = Math.PI; // Rotate the user car to face forward
+         // Rotate the user car to face forward
         MTC.scale.set(1, 1, 1); // Double the scale of the user car
         scene.add(MTC);
         userCarLoaded = true; // Flag to indicate user car has loaded
@@ -147,11 +147,20 @@
           const lanePosition = lanes[laneIndex];
 
           // Set size based on model
-          if (obstacleModel === 'car2.glb') {
-            obstacle.scale.set(0.5, 0.5, 0.5); // Increase size by 200% for car2.glb
+          if (obstacleModel === 'TAXI.glb') {
+            obstacle.scale.set(0.2, 0.2, 0.2); // Increase size by 200% for car2.glb
           } else {
             obstacle.scale.set(0.25, 0.25, 0.25); // Normal scale for other obstacles
           }
+
+          //set obstacle rotation based on model
+          if (obstacleModel ==== 'Bike.glb') {
+            obstacle.rotation.y = Math.PI / 2
+            obstacle.scale.set = (0.3, 0.3, 0.3);
+          } else {
+            obstacle.scale.set(0.25, 0.25, 0.25);
+          }
+    
 
           obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
           obstacle.rotation.y = Math.PI; // Rotate obstacle cars to face forward
