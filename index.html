@@ -7,7 +7,7 @@
     body { 
       margin: 0; 
       overflow: hidden; 
-      font-family: Helvetica, Arial, sans-serif; 
+      font-family: Helvetica; 
     }
     #loadingContainer {
       position: absolute;
@@ -21,7 +21,7 @@
     #loadingBar {
       height: 20px;
       width: 0;
-      background-color: #4caf50;
+      background-color: #2171ec;
       border-radius: 5px;
     }
     #loadingText {
@@ -29,12 +29,12 @@
       bottom: 50px;
       width: 100%;
       text-align: center;
-      font-size: 24px;
+      font-size: 18px;
       color: white;
     }
     #score, #highScore {
       position: absolute;
-      font-size: 24px;
+      font-size: 18px;
       color: white;
     }
     #score {
@@ -43,7 +43,7 @@
     }
     #highScore {
       top: 80px;
-      left: 20px;
+      right: 20px;
     }
     #logo {
       position: absolute;
@@ -59,12 +59,13 @@
       left: 50%;
       transform: translate(-50%, -50%);
       text-align: center;
-      color: white;
+      color: #adadad;
     }
     #restartButton {
       margin-top: 20px;
       font-size: 18px;
       padding: 10px;
+      color: #e7e8ec;
     }
     #continueButton {
       display: none;
@@ -72,7 +73,7 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 20px;
+      font-size: 22px;
       color: white;
       cursor: pointer;
     }
@@ -81,7 +82,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-  <div id="loadingText">Loading... Please wait</div>
+  <div id="loadingText">Fetching real world data... Please wait</div>
   <div id="loadingContainer"><div id="loadingBar"></div></div>
   <div id="continueButton">Continue →</div>
   <img id="logo" src="logo.png" alt="Logo">
@@ -149,7 +150,7 @@
 
           //set Bike obstacle rotation based on model
           if (obstacleModel === 'Bike.glb') {
-            obstacle.rotation.y = Math.PI / 2;
+            obstacle.rotation.y = -Math.PI / 2;
             obstacle.scale.set(0.5, 0.5, 0.5);
           } else {
             obstacle.scale.set(0.25, 0.25, 0.25);
