@@ -124,7 +124,8 @@
     const lanes = [-1.5, 0, 1.5];
     let userCarLoaded = false;
 
-    document.getElementById("highScore").textContent = High Score: ${highScore};
+    document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+
 
     // Load the user's car model with a doubled scale
     loader.load(
@@ -146,30 +147,15 @@
 
     // Load obstacle models with a reduced scale to match the user car
     const obstacleModels = ['Bike.glb', 'TAXI.glb', 'LGV.glb', 'Bus.glb' ];
-
+    const minDistanceZ = -8; // Define minimum Z distance for lane clearance
     function createObstacle() {
-      if (!userCarLoaded) return; // Ensure obstacles only appear after user car loads
 
-      const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
-      loader.load(
-        obstacleModel,
-        (gltf) => {
-          const obstacle = gltf.scene;
-          const laneIndex = Math.floor(Math.random() * lanes.length);
-          const lanePosition = lanes[laneIndex];
 
-  const minDistanceZ = -8; // Define minimum Z distance for lane clearance
 
-  function createObstacle() {
-    if (!userCarLoaded) return; // Ensure obstacles only appear after the user car loads
+    
+  
 
-    const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
-    loader.load(
-      obstacleModel,
-      (gltf) => {
-        const obstacle = gltf.scene;
-        const laneIndex = Math.floor(Math.random() * lanes.length);
-        const lanePosition = lanes[laneIndex];
+
 
         // Set obstacle properties based on its type
         switch (obstacleModel) {
@@ -193,18 +179,10 @@
             obstacle.scale.set(0.25, 0.25, 0.25);
             obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
             break;
+        }
         
         
-       //prevent obstacles from overlapping 
-    const minDistanceZ = -8; // Define minimum Z distance for lane clearance
 
-    const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
-    loader.load(
-      obstacleModel,
-      (gltf) => {
-        const obstacle = gltf.scene;
-        const laneIndex = Math.floor(Math.random() * lanes.length);
-        const lanePosition = lanes[laneIndex];
 
     // Road and lanes
     let roadGeometry = new THREE.PlaneGeometry(20, 100);
@@ -234,6 +212,7 @@
     function animate() {
       if (gameOver) return;
       requestAnimationFrame(animate);
+    }
 
       // Move the player's car
       if (moveLeft && MTC && MTC.position.x > -1) MTC.position.x -= 0.1;
@@ -248,25 +227,27 @@
       });
 
       // Move obstacles and check for collisions
-      obstacles.forEach((obstacle, index) => {
-        obstacle.position.z += 0.05;
-        if (obstacle.position.z > 5) {
-          score++;
-          document.getElementById("score").textContent = Score: ${score};
-          obstacle.position.z = -10 - Math.random() * 20;
-          if (score > highScore) {
-            highScore = score;
-            document.getElementById("highScore").textContent = High Score: ${highScore};
-            localStorage.setItem('highScore', highScore);
-          }
-        }
-        if (MTC && MTC.position.distanceTo(obstacle.position) < 0.5) {
-          endGame();
-        }
-      });
+obstacles.forEach((obstacle, index) => {
+  obstacle.position.z += 0.05;
+  if (obstacle.position.z > 5) {
+    score++;
+    document.getElementById("score").textContent = `Score: ${score}`; // Fixed template literal
 
-      renderer.render(scene, camera);
+    obstacle.position.z = -10 - Math.random() * 20;
+    if (score > highScore) {
+      highScore = score;
+      document.getElementById("highScore").textContent = `High Score: ${highScore}`; // Fixed template literal
+      localStorage.setItem('highScore', highScore);
     }
+  }
+
+  if (MTC && MTC.position.distanceTo(obstacle.position) < 0.5) {
+    endGame();
+  }
+});
+
+renderer.render(scene, camera);
+
 
     animate();
 
@@ -309,23 +290,23 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
     });
+// Progress bar timer simulation
+function simulateLoading() {
+  const duration = Math.floor(Math.random() * 7000) + 8000; // Random duration between 8-15 seconds
+  const startTime = Date.now();
+  const interval = setInterval(() => {
+    const elapsedTime = Date.now() - startTime;
+    const progress = Math.min((elapsedTime / duration) * 100, 100);
+    document.getElementById('loadingBar').style.width = `${progress}%`; // Correct use of template literal
 
-    // Progress bar timer simulation
-    function simulateLoading() {
-      const duration = Math.floor(Math.random() * 7000) + 8000;
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        const elapsedTime = Date.now() - startTime;
-        const progress = Math.min((elapsedTime / duration) * 100, 100);
-        document.getElementById('loadingBar').style.width = ${progress}%;
-        if (progress === 100) {
-          clearInterval(interval);
-          document.getElementById('loadingText').style.display = 'none';
-          document.getElementById('loadingContainer').style.display = 'none';
-          document.getElementById('continueButton').style.display = 'block';
-        }
-      }, 100);
+    if (progress === 100) {
+      clearInterval(interval);
+      document.getElementById('loadingText').style.display = 'none';
+      document.getElementById('loadingContainer').style.display = 'none';
+      document.getElementById('continueButton').style.display = 'block';
     }
+  }, 100); // Update progress every 100ms
+
 
     // Start loading simulation
     simulateLoading();
@@ -335,8 +316,11 @@
       document.getElementById("continueButton").style.display = "none";
       animate();
     });
-  </script>
+
+}}
+    
+</script>
+
 </body>
+
 </html>
-
-
