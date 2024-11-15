@@ -116,7 +116,7 @@
 
     // Load the user's car model with a doubled scale
     loader.load(
-      'https://rz8ua7dqyi1bjfre.public.blob.vercel-storage.com/glbmg-rX4CDyuOQPqMmHgNv6q9IPZeILOiF2.glb',
+      'MTC.glb',
       function (gltf) {
         MTC = gltf.scene;
         MTC.position.set(0, 0.15, 3);
@@ -133,7 +133,7 @@
     );
 
     // Load obstacle models with a reduced scale to match the user car
-    const obstacleModels = ['car2.glb', 'TAXI.glb', 'LGV.glb'];
+    const obstacleModels = ['bike.glb', 'TAXI.glb', 'LGV.glb'];
 
     function createObstacle() {
       if (!userCarLoaded) return; // Ensure obstacles only appear after user car loads
