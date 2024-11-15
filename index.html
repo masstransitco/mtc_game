@@ -228,6 +228,34 @@
       if (e.key === "ArrowLeft") moveLeft = false;
       if (e.key === "ArrowRight") moveRight = false;
     });
+
+    
+    // Game over function
+function endGame() {
+  gameOver = true;
+  document.getElementById("finalScore").textContent = score;
+  document.getElementById("gameOver").style.display = "block";
+}
+
+// Restart button functionality
+document.getElementById("restartButton").addEventListener("click", () => {
+  // Reset game state
+  score = 0;
+  gameOver = false;
+  obstacles.forEach((obstacle) => scene.remove(obstacle)); // Remove all obstacles
+  obstacles = []; // Clear the obstacles array
+
+  MTC.position.set(0, 0.15, 4); // Reset the user's car position
+
+  // Reset UI elements
+  document.getElementById("score").textContent = `Score: ${score}`;
+  document.getElementById("gameOver").style.display = "none";
+
+  // Restart animation loop
+  animate();
+});
+
+    
   </script>
 </body>
 </html>
