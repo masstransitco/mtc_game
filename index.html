@@ -159,51 +159,54 @@
           const lanePosition = lanes[laneIndex];
 
 
-          //set Bike obstacle rotation and size
-         if (obstacleModel === 'Bike.glb') {
+<script>
+  const minDistanceZ = -8; // Define minimum Z distance for lane clearance
+
+  function createObstacle() {
+    if (!userCarLoaded) return; // Ensure obstacles only appear after the user car loads
+
+    const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
+    loader.load(
+      obstacleModel,
+      (gltf) => {
+        const obstacle = gltf.scene;
+        const laneIndex = Math.floor(Math.random() * lanes.length);
+        const lanePosition = lanes[laneIndex];
+
+        // Set obstacle properties based on its type
+        switch (obstacleModel) {
+          case 'Bike.glb':
             obstacle.rotation.y = Math.PI / 2;
             obstacle.scale.set(0.5, 0.5, 0.5);
-           obstacle.position.set(lanePosition, 0.4, -10 - Math.random() * 20);
-         } else {
-         }
-
-          
-          //set Bus obstacle rotation and size
-          if (obstacleModel === 'Bus.glb') {
-            obstacle.scale.set(2, 2.2, 2.2);
-            obstacle.rotation.y = Math.PI;
             obstacle.position.set(lanePosition, 0.4, -10 - Math.random() * 20);
-          } else {
-          }
-
-        
-
-          //set Taxi obstacle rotation and size
-          if (obstacleModel === 'TAXI.glb') {
+            break;
+          case 'Bus.glb':
+            obstacle.rotation.y = Math.PI;
+            obstacle.scale.set(2, 2.2, 2.2);
+            obstacle.position.set(lanePosition, 0.4, -10 - Math.random() * 20);
+            break;
+          case 'TAXI.glb':
+            obstacle.rotation.y = Math.PI;
             obstacle.scale.set(0.18, 0.15, 0.18);
-            obstacle.rotation.y = Math.PI;
             obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-          } else {
-          }
-
-          
-          //set LGV obstacle rotation and size
-          if (obstacleModel === 'LGV.glb') {
+            break;
+          case 'LGV.glb':
+            obstacle.rotation.y = Math.PI;
             obstacle.scale.set(0.25, 0.25, 0.25);
-            obstacle.rotation.y = Math.PI;
             obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-          } else {
-          }
-          
+            break;
+        
         
        //prevent obstacles from overlapping 
-       const isClearLane = !obstacles.some(obs => 
-        Math.abs(obs.position.x - lanePosition) < 0.1 &&  // Allow a small tolerance on X axis
-        obs.position.z > minDistanceZ && obs.position.z < -5 // Adjust Z axis range as needed
-      );
+    const minDistanceZ = -8; // Define minimum Z distance for lane clearance
 
-      if (isClearLane) {
-        obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
+    const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
+    loader.load(
+      obstacleModel,
+      (gltf) => {
+        const obstacle = gltf.scene;
+        const laneIndex = Math.floor(Math.random() * lanes.length);
+        const lanePosition = lanes[laneIndex];
 
     // Road and lanes
     let roadGeometry = new THREE.PlaneGeometry(20, 100);
