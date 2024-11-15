@@ -146,12 +146,6 @@
           const laneIndex = Math.floor(Math.random() * lanes.length);
           const lanePosition = lanes[laneIndex];
 
-          // Set Taxi size based on model
-          if (obstacleModel === 'TAXI.glb') {
-            obstacle.scale.set(0.2, 0.2, 0.2); // Increase size by 200% for car2.glb
-          } else {
-            obstacle.scale.set(0.25, 0.25, 0.25); // Normal scale for other obstacles
-          }
 
           //set Bike obstacle rotation based on model
           if (obstacleModel === 'Bike.glb') {
@@ -164,7 +158,7 @@
           //set Bus obstacle size based on model
           if (obstacleModel === 'Bus.glb') {
             obstacle.rotation.y = Math.PI
-            obstacle.scale.set(0.9, 0.9, 0.9);
+            obstacle.scale.set(1.5, 1.5, 1.5);
           } else { 
             obstacle.scale.set(0.25, 0.25, 0.25);
           }
