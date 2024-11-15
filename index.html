@@ -120,7 +120,7 @@
       'MTC.glb',
       function (gltf) {
         MTC = gltf.scene;
-        MTC.position.set(0, 0, 3);
+        MTC.position.set(0, 0.15, 3);
          // Rotate the user car to face forward
         MTC.scale.set(1, 1, 1); // Double the scale of the user car
         scene.add(MTC);
@@ -151,32 +151,30 @@
           //set Bike obstacle rotation and size
          if (obstacleModel === 'Bike.glb') {
             obstacle.rotation.y = Math.PI / 2;
-            obstacle.scale.set(0.25, 0.25, 0.25)
-         } else {}
+            obstacle.scale.set(0.7, 0.7, 0.7)
+         } else {
+         }
                   
 
           //set Bus obstacle rotation and size
           if (obstacleModel === 'Bus.glb') {
-            obstacle.scale.set(4, 4, 4);
+            obstacle.scale.set(2, 2, 2);
           } else {
-            obstacle.scale.set(1, 1, 1);
           }
 
         
 
           //set Taxi obstacle rotation and size
           if (obstacleModel === 'TAXI.glb') {
-            obstacle.scale.set(0.5, 0.5, 0.5);
+            obstacle.scale.set(0.25, 0.25, 0.25);
           } else {
-            obstacle.scale.set(1, 1, 1);
           }
 
           
           //set LGV obstacle rotation and size
           if (obstacleModel === 'LGV.glb') {
             obstacle.scale.set(0.25, 0.25, 0.25);
-          } else {
-            obstacle.scale.set(1, 1, 1);
+          } else 
           }
           
         
