@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <title>3D Driving Game</title>
   <style>
-    body { 
-      margin: 0; 
-      overflow: hidden; 
-      font-family: Helvetica; 
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Helvetica;
     }
     #loadingContainer {
       position: absolute;
@@ -45,13 +45,6 @@
       top: 80px;
       right: 20px;
     }
-    #logo {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      height: 40px;
-      width: auto;
-    }
     #gameOver {
       display: none;
       position: absolute;
@@ -59,7 +52,7 @@
       left: 50%;
       transform: translate(-50%, -50%);
       text-align: center;
-      color: #adadad;
+      color: white;
     }
     #restartButton {
       margin-top: 20px;
@@ -85,7 +78,6 @@
   <div id="loadingText">Fetching real world data... Please wait</div>
   <div id="loadingContainer"><div id="loadingBar"></div></div>
   <div id="continueButton">Continue →</div>
-  <img id="logo" src="logo.png" alt="Logo">
   <div id="score">Score: 0</div>
   <div id="highScore">High Score: 0</div>
   <div id="gameOver">
@@ -113,6 +105,9 @@
     let moveLeft = false, moveRight = false;
     const lanes = [-1.5, 0, 1.5];
     let userCarLoaded = false;
+
+    // Define obstacle models
+    const obstacleModels = ['Bike.glb', 'TAXI.glb', 'LGV.glb', 'Bus.glb'];
 
     document.getElementById("highScore").textContent = `High Score: ${highScore}`;
 
@@ -142,6 +137,7 @@
         const obstacle = gltf.scene;
         const lanePosition = lanes[Math.floor(Math.random() * lanes.length)];
 
+        // Set obstacle properties
         switch (obstacleModel) {
           case 'Bike.glb':
             obstacle.rotation.y = Math.PI / 2;
@@ -170,25 +166,7 @@
     // Start obstacle generation
     setInterval(createObstacle, 4000);
 
-    // Simulate loading progress
-    function simulateLoading() {
-      const duration = Math.floor(Math.random() * 7000) + 8000;
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        const elapsedTime = Date.now() - startTime;
-        const progress = Math.min((elapsedTime / duration) * 100, 100);
-        document.getElementById('loadingBar').style.width = `${progress}%`;
-
-        if (progress === 100) {
-          clearInterval(interval);
-          document.getElementById('loadingText').style.display = 'none';
-          document.getElementById('loadingContainer').style.display = 'none';
-          document.getElementById('continueButton').style.display = 'block';
-        }
-      }, 100);
-    }
-
-    // Animate scene
+    // Animate the scene
     function animate() {
       if (gameOver) return;
       requestAnimationFrame(animate);
@@ -220,15 +198,10 @@
       renderer.render(scene, camera);
     }
 
-    // Handle input
-    window.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowLeft') moveLeft = true;
-      if (event.key === 'ArrowRight') moveRight = true;
-    });
-
-    window.addEventListener('keyup', (event) => {
-      if (event.key === 'ArrowLeft') moveLeft = false;
-      if (event.key === 'ArrowRight') moveRight = false;
+    // Start game animation on continue
+    document.getElementById("continueButton").addEventListener("click", () => {
+      document.getElementById("continueButton").style.display = "none";
+      animate();
     });
 
     // Game over function
@@ -243,20 +216,11 @@
       location.reload();
     });
 
-    // Window resizing
+    // Resize handling
     window.addEventListener('resize', () => {
       renderer.setSize(window.innerWidth, window.innerHeight);
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-    });
-
-    // Start loading simulation
-    simulateLoading();
-
-    // Start game on continue button
-    document.getElementById("continueButton").addEventListener("click", () => {
-      document.getElementById("continueButton").style.display = "none";
-      animate();
     });
   </script>
 </body>
