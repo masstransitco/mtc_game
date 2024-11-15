@@ -150,10 +150,19 @@
 
           //set Bike obstacle rotation and size
           if (obstacleModel === 'Bike.glb') {
-            obstacle.rotation.y = Math.PI;
-            obstacle.scale.set(0.5, 0.5, 0.5);
+            obstacle.rotation.y = Math.PI /2;
+            obstacle.scale.set(0.34, 0.35, 0.35)
           } else {
             obstacle.rotation.y = Math.PI;
+            obstacle.scale.set(1, 1, 1);
+          }
+
+                  
+
+          //set Bus obstacle rotation and size
+          if (obstacleModel === 'Bus.glb') {
+            obstacle.scale.set(2, 2, 2);
+          } else {
             obstacle.scale.set(1, 1, 1);
           }
 
