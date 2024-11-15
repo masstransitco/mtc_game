@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <title>3D Driving Game</title>
   <style>
-    body { 
-      margin: 0; 
-      overflow: hidden; 
-      font-family: Helvetica; 
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Helvetica;
     }
     #loadingContainer {
       position: absolute;
@@ -45,13 +45,6 @@
       top: 80px;
       right: 20px;
     }
-    #logo {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      height: 40px;
-      width: auto;
-    }
     #gameOver {
       display: none;
       position: absolute;
@@ -59,23 +52,13 @@
       left: 50%;
       transform: translate(-50%, -50%);
       text-align: center;
-      color: #adadad;
+      color: white;
     }
     #restartButton {
       margin-top: 20px;
       font-size: 18px;
       padding: 10px;
       color: #121212;
-    }
-    #continueButton {
-      display: none;
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 22px;
-      color: white;
-      cursor: pointer;
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -84,8 +67,6 @@
 <body>
   <div id="loadingText">Fetching real-world data... Please wait</div>
   <div id="loadingContainer"><div id="loadingBar"></div></div>
-  <div id="continueButton">Continue →</div>
-  <img id="logo" src="logo.png" alt="Logo">
   <div id="score">Score: 0</div>
   <div id="highScore">High Score: 0</div>
   <div id="gameOver">
@@ -94,40 +75,57 @@
     <button id="restartButton">Play Again</button>
   </div>
   <script>
-    let scene = new THREE.Scene();
+    const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
-    let camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(-1, 1, 8);
 
-    let renderer = new THREE.WebGLRenderer();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1, 8);
+
+    const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+    // Add lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0xff0000, 1, 100, 2);
-    pointLight.position.set(5, 5, 5);
-    pointLight.castShadow = true;
-    scene.add(pointLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(0, 5, 5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
 
-    pointLight.shadow.mapSize.width = 1024;
-    pointLight.shadow.mapSize.height = 1024;
-    pointLight.shadow.camera.near = 0.5;
-    pointLight.shadow.camera.far = 500;
-
-    let loader = new THREE.GLTFLoader();
-    let MTC, obstacles = [], score = 0, highScore = localStorage.getItem('highScore') || 0;
-    let gameOver = false;
-    let moveLeft = false, moveRight = false;
+    // Load GLTF models
+    const loader = new THREE.GLTFLoader();
+    let MTC, obstacles = [];
+    let moveLeft = false, moveRight = false, userCarLoaded = false;
     const lanes = [-1.5, 0, 1.5];
-    let userCarLoaded = false;
 
-    document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+    // Add road
+    const roadGeometry = new THREE.PlaneGeometry(20, 100);
+    const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+    const road = new THREE.Mesh(roadGeometry, roadMaterial);
+    road.rotation.x = -Math.PI / 2;
+    road.position.y = -0.1;
+    road.receiveShadow = true;
+    scene.add(road);
 
+    // Add lane markers
+    const markers = [];
+    for (let i = 0; i < 30; i++) {
+      const markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
+      const markerMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+      lanes.forEach((lane) => {
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.set(lane, 0.01, -5 * i);
+        markers.push(marker);
+        scene.add(marker);
+      });
+    }
+
+    // Load user car
     loader.load(
       'MTC.glb',
-      function (gltf) {
+      (gltf) => {
         MTC = gltf.scene;
         MTC.position.set(0, 0.15, 4);
         MTC.scale.set(1, 1, 1);
@@ -135,70 +133,65 @@
         userCarLoaded = true;
         document.getElementById('loadingText').style.display = 'none';
         document.getElementById('loadingContainer').style.display = 'none';
-        document.getElementById('continueButton').style.display = 'block';
       },
       undefined,
-      error => console.error('Error loading the user car model:', error)
+      (error) => console.error('Error loading user car:', error)
     );
 
+    // Add obstacles
     const obstacleModels = ['Bike.glb', 'TAXI.glb', 'LGV.glb', 'Bus.glb'];
-
-    const minDistanceZ = -8;
 
     function createObstacle() {
       if (!userCarLoaded) return;
 
-      const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
-      loader.load(
-        obstacleModel,
-        (gltf) => {
-          const obstacle = gltf.scene;
-          const laneIndex = Math.floor(Math.random() * lanes.length);
-          const lanePosition = lanes[laneIndex];
-
-          switch (obstacleModel) {
-            case 'Bike.glb':
-              obstacle.rotation.y = Math.PI / 2;
-              obstacle.scale.set(0.5, 0.5, 0.5);
-              break;
-            case 'Bus.glb':
-              obstacle.rotation.y = Math.PI;
-              obstacle.scale.set(2, 2.2, 2.2);
-              break;
-            case 'TAXI.glb':
-              obstacle.rotation.y = Math.PI;
-              obstacle.scale.set(0.18, 0.15, 0.18);
-              break;
-            case 'LGV.glb':
-              obstacle.rotation.y = Math.PI;
-              obstacle.scale.set(0.25, 0.25, 0.25);
-              break;
-          }
-
-          obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-
-          const isClearLane = !obstacles.some(obs =>
-            Math.abs(obs.position.x - lanePosition) < 0.1 &&
-            obs.position.z > minDistanceZ && obs.position.z < -5
-          );
-
-          if (isClearLane) {
-            obstacles.push(obstacle);
-            scene.add(obstacle);
-          }
-        },
-        undefined,
-        error => console.error('Error loading obstacle model:', error)
-      );
+      const model = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
+      loader.load(model, (gltf) => {
+        const obstacle = gltf.scene;
+        const lane = lanes[Math.floor(Math.random() * lanes.length)];
+        obstacle.position.set(lane, 0.15, -20);
+        obstacle.scale.set(0.5, 0.5, 0.5);
+        obstacles.push(obstacle);
+        scene.add(obstacle);
+      });
     }
 
-    setInterval(createObstacle, 4000);
+    setInterval(createObstacle, 3000);
 
+    // Handle user input
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') moveLeft = true;
+      if (event.key === 'ArrowRight') moveRight = true;
+    });
+
+    window.addEventListener('keyup', (event) => {
+      if (event.key === 'ArrowLeft') moveLeft = false;
+      if (event.key === 'ArrowRight') moveRight = false;
+    });
+
+    // Animate scene
     function animate() {
-      if (gameOver) return;
-      requestAnimationFrame(animate);
+      if (MTC) {
+        if (moveLeft && MTC.position.x > -1.5) MTC.position.x -= 0.1;
+        if (moveRight && MTC.position.x < 1.5) MTC.position.x += 0.1;
+      }
+
+      obstacles.forEach((obstacle, index) => {
+        obstacle.position.z += 0.1;
+        if (obstacle.position.z > 10) {
+          scene.remove(obstacle);
+          obstacles.splice(index, 1);
+        }
+      });
+
+      markers.forEach((marker) => {
+        marker.position.z += 0.1;
+        if (marker.position.z > 5) {
+          marker.position.z = -95;
+        }
+      });
 
       renderer.render(scene, camera);
+      requestAnimationFrame(animate);
     }
 
     animate();
