@@ -144,7 +144,7 @@
     function createObstacle() {
       if (!userCarLoaded) return;
 
-      const model = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
+    const model = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
       loader.load(model, (gltf) => {
         const obstacle = gltf.scene;
         const lane = lanes[Math.floor(Math.random() * lanes.length)];
