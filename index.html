@@ -152,16 +152,16 @@
          if (obstacleModel === 'Bike.glb') {
             obstacle.rotation.y = Math.PI / 2;
             obstacle.scale.set(0.7, 0.7, 0.7);
-           obstacle.position.set(lanePosition, 0.5, -10 - Math.random() * 20);
+           obstacle.position.set(lanePosition, 0.25, -10 - Math.random() * 20);
          } else {
          }
-                  
 
+          
           //set Bus obstacle rotation and size
           if (obstacleModel === 'Bus.glb') {
             obstacle.scale.set(2, 2.2, 2.2);
             obstacle.rotation.y = Math.PI;
-            obstacle.position.set(lanePosition, 0.5, -10 - Math.random() * 20);
+            obstacle.position.set(lanePosition, 0.25, -10 - Math.random() * 20);
           } else {
           }
 
@@ -186,7 +186,7 @@
           
         
 
-          obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
+          
           // Rotate obstacle cars to face forward
 
           // Ensure obstacles do not overlap by keeping track of occupied lanes
