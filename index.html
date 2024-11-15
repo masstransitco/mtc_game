@@ -96,15 +96,26 @@
   <script>
     let scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
-    let camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(-1, 1, 8);
+    let camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);  //field of view at 90degreees
+    camera.position.set(-1, 1, 8); // camera -1 vertically from horizon
 
     let renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    //base light
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     scene.add(ambientLight);
+    
+    //scene light
+    const pointLight = new THREE.PointLight(0xff0000, 1, 100, 2); // Red light with decay
+    pointLight.position.set(5, 5, 5);
+    pointLight.castShadow = true;
+    scene.add(pointLight);
+    pointLight.shadow.mapSize.width = 1024; // Shadow resolution (higher = sharper shadows)
+    pointLight.shadow.mapSize.height = 1024;
+    pointLight.shadow.camera.near = 0.5; // Start of the shadow camera's frustum
+    pointLight.shadow.camera.far = 500; // End of the shadow camera's frustum
 
     let loader = new THREE.GLTFLoader();
     let MTC, obstacles = [], score = 0, highScore = localStorage.getItem('highScore') || 0;
@@ -185,20 +196,14 @@
           }
           
         
-
-          
-          // Rotate obstacle cars to face forward
-
-          // Ensure obstacles do not overlap by keeping track of occupied lanes
-          if (!obstacles.some(obs => obs.position.x === lanePosition && obs.position.z < -6)) {
-            obstacles.push(obstacle);
-            scene.add(obstacle);
-          }
-        },
-        undefined,
-        error => console.error('Error loading obstacle model:', error)
+       //prevent obstacles from overlapping 
+       const isClearLane = !obstacles.some(obs => 
+        Math.abs(obs.position.x - lanePosition) < 0.1 &&  // Allow a small tolerance on X axis
+        obs.position.z > minDistanceZ && obs.position.z < -5 // Adjust Z axis range as needed
       );
-    }
+
+      if (isClearLane) {
+        obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
 
     // Road and lanes
     let roadGeometry = new THREE.PlaneGeometry(20, 100);
