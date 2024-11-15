@@ -123,6 +123,26 @@ let moveLeft = false;
 let moveRight = false;
 const lanes = [-1.5, 0, 1.5];
 let userCarLoaded = false;
+       // Road and lanes
+    let roadGeometry = new THREE.PlaneGeometry(20, 100);
+    let roadMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    let road = new THREE.Mesh(roadGeometry, roadMaterial);
+    road.rotation.x = -Math.PI / 2;
+    road.position.y = -0.1;
+    scene.add(road);
+
+    // Lane markers
+    let markers = [];
+    for (let i = 0; i < 30; i++) {
+      let markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
+      let markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      for (let lane of lanes) {
+        let marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.set(lane, 0.01, -5 * i);
+        markers.push(marker);
+        scene.add(marker);
+      }
+    }
 
     document.getElementById("highScore").textContent = `High Score: ${highScore}`;
 
