@@ -65,7 +65,7 @@
       margin-top: 20px;
       font-size: 18px;
       padding: 10px;
-      color: #e7e8ec;
+      color: #121212;
     }
     #continueButton {
       display: none;
@@ -96,8 +96,8 @@
   <script>
     let scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
-    let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1, 8);
+    let camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(-1, 1, 8);
 
     let renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
