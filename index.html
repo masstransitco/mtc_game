@@ -106,16 +106,7 @@
     //base light
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     scene.add(ambientLight);
-    
-    //scene light
-    const pointLight = new THREE.PointLight(0xff0000, 1, 100, 2); // Red light with decay
-    pointLight.position.set(5, 5, 5);
-    pointLight.castShadow = true;
-    scene.add(pointLight);
-    pointLight.shadow.mapSize.width = 1024; // Shadow resolution (higher = sharper shadows)
-    pointLight.shadow.mapSize.height = 1024;
-    pointLight.shadow.camera.near = 0.5; // Start of the shadow camera's frustum
-    pointLight.shadow.camera.far = 500; // End of the shadow camera's frustum
+  
 
     let loader = new THREE.GLTFLoader();
     let MTC, obstacles = [], score = 0, highScore = localStorage.getItem('highScore') || 0;
