@@ -150,11 +150,11 @@
 
           //set Bike obstacle rotation and size
           if (obstacleModel === 'Bike.glb') {
-            obstacle.rotation.y = -Math.PI / 2;
+            obstacle.rotation.y = Math.PI;
             obstacle.scale.set(0.5, 0.5, 0.5);
           } else {
             obstacle.rotation.y = Math.PI;
-            obstacle.scale.set(0.25, 0.25, 0.25);
+            obstacle.scale.set(1, 1, 1);
           }
 
           //set Bus obstacle rotation and size
@@ -163,7 +163,7 @@
             obstacle.scale.set(1.5, 1.7, 1.7);
             obstacle.position.set(lanePosition, -0.1, -10 - Math.random() * 20);
           } else { 
-            obstacle.scale.set(0.25, 0.25, 0.25);
+            obstacle.scale.set(1, 1, 1);
             obstacle.position.set(lanePosition, 0.15, -10 - Math.random() *20);
           }
 
@@ -171,7 +171,7 @@
           if (obstacleModel === 'TAXI.glb') {
             obstacle.scale.set(0.2, 0.18, 0.22);
           } else {
-            obstacle.scale.set(0.25, 0.25, 0.25);
+            obstacle.scale.set(1, 1, 1);
           }
           
         
