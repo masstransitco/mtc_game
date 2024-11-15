@@ -144,52 +144,36 @@
     function createObstacle() {
       if (!userCarLoaded) return;
 
-    const model = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
+      const model = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
       loader.load(model, (gltf) => {
         const obstacle = gltf.scene;
         const lane = lanes[Math.floor(Math.random() * lanes.length)];
+
+        // Set obstacle properties based on type
+        switch (model) {
+          case 'Bike.glb':
+            obstacle.rotation.y = Math.PI / 2;
+            obstacle.scale.set(0.5, 0.5, 0.5);
+            break;
+          case 'Bus.glb':
+            obstacle.rotation.y = Math.PI;
+            obstacle.scale.set(2, 2.2, 2.2);
+            break;
+          case 'TAXI.glb':
+            obstacle.rotation.y = Math.PI;
+            obstacle.scale.set(0.18, 0.15, 0.18);
+            break;
+          case 'LGV.glb':
+            obstacle.rotation.y = Math.PI;
+            obstacle.scale.set(0.25, 0.25, 0.25);
+            break;
+        }
+
         obstacle.position.set(lane, 0.15, -20);
         obstacles.push(obstacle);
         scene.add(obstacle);
       });
-    } {
-
-              //set Bike obstacle rotation and size
-         if (obstacleModel === 'Bike.glb') {
-            obstacle.rotation.y = Math.PI / 2;
-            obstacle.scale.set(0.5, 0.5, 0.5);
-           obstacle.position.set(lanePosition, 0.4, -10 - Math.random() * 20);
-         } else {
-         }
-
-          
-          //set Bus obstacle rotation and size
-          if (obstacleModel === 'Bus.glb') {
-            obstacle.scale.set(2, 2.2, 2.2);
-            obstacle.rotation.y = Math.PI;
-            obstacle.position.set(lanePosition, 0.4, -10 - Math.random() * 20);
-          } else {
-          }
-
-        
-
-          //set Taxi obstacle rotation and size
-          if (obstacleModel === 'TAXI.glb') {
-            obstacle.scale.set(0.18, 0.15, 0.18);
-            obstacle.rotation.y = Math.PI;
-            obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-          } else {
-          }
-
-          
-          //set LGV obstacle rotation and size
-          if (obstacleModel === 'LGV.glb') {
-            obstacle.scale.set(0.25, 0.25, 0.25);
-            obstacle.rotation.y = Math.PI;
-            obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-          } else {
-          }
-          
+    }
 
     setInterval(createObstacle, 3000);
 
