@@ -149,14 +149,10 @@
 
 
           //set Bike obstacle rotation and size
-          if (obstacleModel === 'Bike.glb') {
+         (obstacleModel === 'Bike.glb') {
             obstacle.rotation.y = Math.PI / 2;
             obstacle.scale.set(0.25, 0.25, 0.25)
-          } else {
-            obstacle.rotation.y = Math.PI;
-            obstacle.scale.set(1, 1, 1);
-          }
-
+         }
                   
 
           //set Bus obstacle rotation and size
@@ -186,7 +182,7 @@
         
 
           obstacle.position.set(lanePosition, 0.15, -10 - Math.random() * 20);
-          obstacle.rotation.y = Math.PI; // Rotate obstacle cars to face forward
+          // Rotate obstacle cars to face forward
 
           // Ensure obstacles do not overlap by keeping track of occupied lanes
           if (!obstacles.some(obs => obs.position.x === lanePosition && obs.position.z < -6)) {
