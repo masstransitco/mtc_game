@@ -2,94 +2,238 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>3D Driving Game</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
+  />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent"
+  />
+  <title>Aircity Technologies</title>
   <style>
+    /* Basic Reset and Styling */
     body {
       margin: 0;
       overflow: hidden;
-      font-family: Helvetica;
+      font-family: Helvetica, sans-serif;
+      background-color: #1C262D; /* Uber Dark Blue Sky */
     }
-    #loadingContainer {
+
+    /* Logo Styling */
+    #logo {
       position: absolute;
-      bottom: 20px;
+      top: 10px;
+      left: 10px;
+      width: 100px; /* Adjust width as needed */
+      height: auto; /* Maintain aspect ratio */
+      z-index: 10; /* Ensure it appears on top of the canvas */
+    }
+
+    /* UI Container for Score and High Score */
+    #ui-container {
+      position: fixed;
+      top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      width: 80%;
-      background: #333;
-      border-radius: 5px;
+      display: none; /* Hidden by default */
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px 20px;
+      border-radius: 10px;
+      z-index: 20; /* Above other elements but below gameOver */
     }
-    #loadingBar {
-      height: 20px;
-      width: 0;
-      background-color: #2171ec;
-      border-radius: 5px;
-    }
-    #loadingText {
-      position: absolute;
-      bottom: 50px;
-      width: 100%;
-      text-align: center;
-      font-size: 18px;
-      color: white;
-    }
+
+    /* Score and High Score Styling */
     #score, #highScore {
-      position: absolute;
       font-size: 18px;
       color: white;
+      margin: 5px 0;
     }
-    #score {
-      top: 20px;
-      right: 20px;
-    }
-    #highScore {
-      top: 80px;
-      right: 20px;
-    }
+
+    /* Game Over Container */
     #gameOver {
-      display: none;
-      position: absolute;
+      display: none; /* Hidden by default */
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       text-align: center;
-      color: #adadad;
+      color: #FFFFFF;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 30px;
+      border-radius: 10px;
+      z-index: 30; /* Above all other elements */
     }
+
+    /* Restart Button Styling */
     #restartButton {
       margin-top: 20px;
       font-size: 18px;
-      padding: 10px;
-      color: #121212;
+      padding: 10px 20px;
+      color: #0072E9;
+      background: #FFFFFF;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
     }
+
+    #restartButton:hover {
+      background-color: #f0f0f0;
+    }
+
+    /* Continue Button Styling */
     #continueButton {
-      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 150px;
+      max-height: min-content;
+      font-size: 18px;
+      color: white;
+      background: rgba(0, 114, 233, 0.8);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      padding: 10px 20px;
+      z-index: 25; /* Above game elements but below gameOver */
+      transition: background 0.3s;
+    }
+
+    #continueButton:hover {
+      background: rgba(0, 114, 233, 1);
+    }
+
+    /* Joystick Container Styling */
+    #joystick-container {
       position: absolute;
       bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 22px;
-      color: white;
-      cursor: pointer;
+      left: 20px; /* Change to 'right: 20px;' if you prefer the right side */
+      width: 100px;
+      height: 100px;
+      z-index: 30; /* Ensure it appears above other elements */
+      display: none; /* Hidden on desktop, shown on mobile via media query */
+    }
+
+    /* Joystick Base Styling */
+    #joystick-base {
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      position: relative;
+      touch-action: none; /* Prevent default touch behaviors */
+    }
+
+    /* Joystick Knob Styling */
+    #joystick-knob {
+      width: 60px;
+      height: 60px;
+      background: rgba(255, 255, 255, 0.6);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      transition: background 0.1s, transform 0.1s;
+    }
+
+    /* Active State for Joystick Knob */
+    #joystick-knob.active {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    /* Visual Indicators for Actions */
+    #joystick-knob.accelerate {
+      background: rgba(0, 255, 0, 0.6); /* Green for accelerate */
+    }
+
+    #joystick-knob.decelerate {
+      background: rgba(255, 0, 0, 0.6); /* Red for decelerate */
+    }
+
+    #joystick-knob.turnLeft {
+      background: rgba(0, 0, 255, 0.6); /* Blue for left */
+    }
+
+    #joystick-knob.turnRight {
+      background: rgba(255, 255, 0, 0.6); /* Yellow for right */
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 600px) {
+      #joystick-container {
+        width: 80px;
+        height: 80px;
+        bottom: 15px;
+        left: 15px;
+      }
+      
+      #joystick-knob {
+        width: 50px;
+        height: 50px;
+        top: 15px;
+        left: 15px;
+      }
+
+      /* Show joystick only on mobile */
+      #joystick-container {
+        display: block;
+      }
+    }
+
+    /* Hide joystick on desktop */
+    @media (min-width: 601px) {
+      #joystick-container {
+        display: none;
+      }
     }
   </style>
+  <!-- Three.js Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-  <div id="loadingText">Loading game assets...</div>
-  <div id="loadingContainer"><div id="loadingBar"></div></div>
-  <div id="continueButton">Start Game</div>
-  <div id="score">Score: 0</div>
-  <div id="highScore">High Score: 0</div>
+  <!-- Logo -->
+  <img id="logo" src="logo.png" alt="MTC Logo">
+
+  <!-- Continue Button -->
+  <button id="continueButton">Start Game</button>
+
+  <!-- UI Container for Score and High Score (Hidden Initially) -->
+  <div id="ui-container">
+    <div id="score">Score: 0</div>
+    <div id="highScore">High Score: 0</div>
+  </div>
+
+  <!-- Game Over Screen (Hidden Initially) -->
   <div id="gameOver">
     <h1>Game Over</h1>
-    <p>Your Score: <span id="finalScore"></span></p>
+    <p>Your Score: <span id="finalScore">0</span></p>
     <button id="restartButton">Play Again</button>
   </div>
-  <script>
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB); // Sky blue
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  <!-- Joystick Container (Visible Only on Mobile) -->
+  <div id="joystick-container">
+    <div id="joystick-base">
+      <div id="joystick-knob"></div>
+    </div>
+  </div>
+
+  <script>
+    // THREE.js Scene Setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1C262D); // Uber Dark Blue Sky
+
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
     camera.position.set(0, 2, 8);
 
     const renderer = new THREE.WebGLRenderer();
@@ -126,6 +270,7 @@
       });
     }
 
+    // GLTF Loader
     const loader = new THREE.GLTFLoader();
     let MTC;
     let obstacles = [];
@@ -134,11 +279,14 @@
     let gameOver = false;
     let moveLeft = false;
     let moveRight = false;
-    let userCarLoaded = false;
+    let velocity = 0;
+    const accelerationRate = 0.02; // Renamed to avoid conflict with 'acceleration' flag
+    const maxSpeed = 0.3;
 
+    // Update High Score Display
     document.getElementById("highScore").textContent = `High Score: ${highScore}`;
 
-    // Load user car
+    // Load User Car
     loader.load(
       'MTC.glb',
       (gltf) => {
@@ -147,15 +295,13 @@
         MTC.scale.set(1, 1, 1);
         scene.add(MTC);
         userCarLoaded = true;
-        document.getElementById('loadingText').style.display = 'none';
-        document.getElementById('loadingContainer').style.display = 'none';
         document.getElementById('continueButton').style.display = 'block';
       },
       undefined,
       (error) => console.error('Error loading user car:', error)
     );
 
-    // Obstacle models
+    // Load Obstacle Models
     const obstacleModels = ['Bike.glb', 'TAXI.glb', 'LGV.glb', 'Bus.glb'];
 
     function createObstacle() {
@@ -167,30 +313,224 @@
         (gltf) => {
           const obstacle = gltf.scene;
           const lane = lanes[Math.floor(Math.random() * lanes.length)];
-          obstacle.position.set(lane, 0.15, -15 - Math.random() * 20);
           scene.add(obstacle);
           obstacles.push(obstacle);
+
+          // Set obstacle properties based on type
+          if (obstacleModel === 'Bike.glb') {
+            obstacle.rotation.y = Math.PI / 2;
+            obstacle.scale.set(0.6, 0.6, 0.6);
+            obstacle.position.set(lane, 0.4, -100 - Math.random() * 200);
+          } 
+          if (obstacleModel === 'Bus.glb') {
+            obstacle.scale.set(2, 2.2, 2.2);
+            obstacle.rotation.y = Math.PI;
+            obstacle.position.set(lane, 0.4, -100 - Math.random() * 200);
+          }
+          if (obstacleModel === 'TAXI.glb') {
+            obstacle.scale.set(0.2, 0.17, 0.2);
+            obstacle.rotation.y = Math.PI;
+            obstacle.position.set(lane, 0.15, -100 - Math.random() * 200);
+          }
+          if (obstacleModel === 'LGV.glb') {
+            obstacle.scale.set(0.28, 0.28, 0.28);
+            obstacle.rotation.y = Math.PI;
+            obstacle.position.set(lane, 0.15, -100 - Math.random() * 200);
+          }
         },
         undefined,
         (error) => console.error('Error loading obstacle:', error)
       );
     }
 
+    // Create Obstacles Every 3 Seconds
     setInterval(createObstacle, 3000);
 
+    // Joystick Elements
+    const joystickContainer = document.getElementById('joystick-container');
+    const joystickBase = document.getElementById('joystick-base');
+    const joystickKnob = document.getElementById('joystick-knob');
+
+    // Joystick Properties
+    const maxDistance = joystickBase.offsetWidth / 2;
+    let joystickActive = false;
+    let joystickX = 0;
+    let joystickY = 0;
+
+    // Control Flags
+    let accelerate = false;
+    let decelerate = false;
+
+    // Touch Event Handlers for Joystick
+    joystickBase.addEventListener('touchstart', startJoystick, { passive: false });
+    joystickBase.addEventListener('touchmove', moveJoystick, { passive: false });
+    joystickBase.addEventListener('touchend', endJoystick, { passive: false });
+
+    function startJoystick(e) {
+      e.preventDefault();
+      joystickActive = true;
+      joystickKnob.classList.add('active');
+      updateJoystick(e);
+    }
+
+    function moveJoystick(e) {
+      if (!joystickActive) return;
+      e.preventDefault();
+      updateJoystick(e);
+    }
+
+    function endJoystick(e) {
+      if (!joystickActive) return;
+      e.preventDefault();
+      joystickActive = false;
+      joystickKnob.classList.remove('active');
+      // Reset knob to center with smooth transition
+      joystickKnob.style.transition = 'transform 0.3s ease';
+      joystickKnob.style.transform = `translate(0px, 0px)`;
+      setTimeout(() => {
+        joystickKnob.style.transition = 'transform 0.1s ease'; // Reset transition
+        joystickX = 0;
+        joystickY = 0;
+      }, 300);
+      // Reset control flags
+      accelerate = false;
+      decelerate = false;
+      moveLeft = false;
+      moveRight = false;
+    }
+
+    function updateJoystick(e) {
+      const touch = e.touches[0];
+      const rect = joystickBase.getBoundingClientRect();
+      const touchX = touch.clientX - rect.left - rect.width / 2;
+      const touchY = touch.clientY - rect.top - rect.height / 2;
+
+      // Calculate distance from center
+      const distance = Math.min(Math.sqrt(touchX * touchX + touchY * touchY), maxDistance);
+      const angle = Math.atan2(touchY, touchX);
+
+      // Calculate joystick position
+      joystickX = (distance * Math.cos(angle)) / maxDistance; // Normalize between -1 and 1
+      joystickY = (distance * Math.sin(angle)) / maxDistance; // Normalize between -1 and 1
+
+      // Move joystick knob
+      const knobX = (joystickX * maxDistance * 0.6); // 0.6 to limit knob movement within base
+      const knobY = (joystickY * maxDistance * 0.6);
+      joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+      // Update game controls based on joystick position
+      updateGameControls(joystickX, joystickY);
+    }
+
+    function updateGameControls(x, y) {
+      // Dead zone radius
+      const deadZone = 0.2;
+
+      // Reset classes for visual feedback
+      joystickKnob.classList.remove('accelerate', 'decelerate', 'turnLeft', 'turnRight');
+
+      // y controls acceleration and deceleration
+      if (y > deadZone) {
+        accelerate = true;
+        joystickKnob.classList.add('accelerate');
+      } else {
+        accelerate = false;
+      }
+
+      if (y < -deadZone) {
+        decelerate = true;
+        joystickKnob.classList.add('decelerate');
+      } else {
+        decelerate = false;
+      }
+
+      // x controls left and right turning
+      if (x < -deadZone) {
+        moveLeft = true;
+        joystickKnob.classList.add('turnLeft');
+      } else {
+        moveLeft = false;
+      }
+
+      if (x > deadZone) {
+        moveRight = true;
+        joystickKnob.classList.add('turnRight');
+      } else {
+        moveRight = false;
+      }
+    }
+
+    // Animate Function
     function animate() {
       if (gameOver) return;
 
       requestAnimationFrame(animate);
 
-      if (moveLeft && MTC.position.x > -3) MTC.position.x -= 0.1;
-      if (moveRight && MTC.position.x < 3) MTC.position.x += 0.1;
+      // Handle acceleration and deceleration
+      if (accelerate) {
+        velocity = Math.min(velocity + accelerationRate, maxSpeed);
+      } else if (decelerate) {
+        velocity = Math.max(velocity - accelerationRate, -maxSpeed); // Allow reverse if needed
+      } else {
+        // Decelerate to zero when no input
+        if (velocity > 0) {
+          velocity = Math.max(velocity - accelerationRate, 0);
+        } else if (velocity < 0) {
+          velocity = Math.min(velocity + accelerationRate, 0);
+        }
+      }
 
+      // Handle turning
+      if (moveLeft) {
+        // Rotate left with limit
+        if (MTC.rotation.y < Math.PI / 4) { // 45 degrees
+          MTC.rotation.y += 0.05;
+        }
+      }
+      if (moveRight) {
+        // Rotate right with limit
+        if (MTC.rotation.y > -Math.PI / 4) { // -45 degrees
+          MTC.rotation.y -= 0.05;
+        }
+      }
+
+      // Reset rotation to zero if not turning
+      if (!moveLeft && !moveRight) {
+        // Smoothly rotate back to 0
+        MTC.rotation.y *= 0.9; // Damping factor
+      }
+
+      // Limit rotation to ±45 degrees
+      MTC.rotation.y = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, MTC.rotation.y));
+
+      // Update the car's position based on velocity
+      if (MTC) {
+        MTC.position.x += velocity;
+      }
+
+      // Easing during speed transitions (Optional)
+      // const easingFactor = 0.1;
+      // MTC.position.x += (velocity - MTC.position.x) * easingFactor;
+
+      // Visual Feedback For Turning Movement
+      if (moveLeft) {
+        MTC.rotation.z = 0.1; // Tilt left
+      } else if (moveRight) {
+        MTC.rotation.z = -0.1; // Tilt right
+      } else {
+        MTC.rotation.z *= 0.9; // Smoothly return to upright position
+      }
+
+      // Boundary checks to prevent the car from moving out of lanes
+      MTC.position.x = Math.max(-3, Math.min(3, MTC.position.x));
+
+      // Update lane markers
       markers.forEach((marker) => {
         marker.position.z += 0.1;
         if (marker.position.z > 5) marker.position.z = -195;
       });
 
+      // Update obstacles
       obstacles.forEach((obstacle, index) => {
         obstacle.position.z += 0.1;
         if (obstacle.position.z > 5) {
@@ -205,57 +545,70 @@
           }
         }
 
+        // Collision detection
         if (MTC && MTC.position.distanceTo(obstacle.position) < 0.5) {
           gameOver = true;
           document.getElementById("finalScore").textContent = score;
           document.getElementById("gameOver").style.display = "block";
+          document.getElementById("ui-container").style.display = "block";
         }
       });
 
       renderer.render(scene, camera);
     }
 
+    // Start Game on Continue Button Click
     document.getElementById("continueButton").addEventListener("click", () => {
       document.getElementById("continueButton").style.display = "none";
       animate();
     });
 
+    // Keyboard Controls for Desktop
     window.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft") moveLeft = true;
       if (e.key === "ArrowRight") moveRight = true;
+      if (e.key === "ArrowUp") accelerate = true;
+      if (e.key === "ArrowDown") decelerate = true;
     });
+
     window.addEventListener("keyup", (e) => {
       if (e.key === "ArrowLeft") moveLeft = false;
       if (e.key === "ArrowRight") moveRight = false;
+      if (e.key === "ArrowUp") accelerate = false;
+      if (e.key === "ArrowDown") decelerate = false;
     });
 
-    
-    // Game over function
-function endGame() {
-  gameOver = true;
-  document.getElementById("finalScore").textContent = score;
-  document.getElementById("gameOver").style.display = "block";
-}
+    // Game Over Function
+    function endGame() {
+      gameOver = true;
+      document.getElementById("finalScore").textContent = score;
+      document.getElementById("gameOver").style.display = "block";
+      document.getElementById("ui-container").style.display = "block";
+    }
 
-// Restart button functionality
-document.getElementById("restartButton").addEventListener("click", () => {
-  // Reset game state
-  score = 0;
-  gameOver = false;
-  obstacles.forEach((obstacle) => scene.remove(obstacle)); // Remove all obstacles
-  obstacles = []; // Clear the obstacles array
+    // Restart Button Functionality
+    document.getElementById("restartButton").addEventListener("click", () => {
+      // Reset game state
+      score = 0;
+      gameOver = false;
+      obstacles.forEach((obstacle) => scene.remove(obstacle)); // Remove all obstacles
+      obstacles = []; // Clear the obstacles array
 
-  MTC.position.set(0, 0.15, 4); // Reset the user's car position
+      if (MTC) {
+        MTC.position.set(0, 0.15, 4); // Reset the user's car position
+        MTC.rotation.y = 0; // Reset rotation
+        MTC.rotation.z = 0; // Reset tilt
+      }
 
-  // Reset UI elements
-  document.getElementById("score").textContent = `Score: ${score}`;
-  document.getElementById("gameOver").style.display = "none";
+      // Reset UI elements
+      document.getElementById("score").textContent = `Score: ${score}`;
+      document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+      document.getElementById("gameOver").style.display = "none";
+      document.getElementById("ui-container").style.display = "none";
 
-  // Restart animation loop
-  animate();
-});
-
-    
+      // Restart animation loop
+      animate();
+    });
   </script>
 </body>
 </html>
