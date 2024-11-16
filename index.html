@@ -31,21 +31,22 @@
       z-index: 10; /* Ensure it appears on top of the canvas */
     }
 
-    /* UI Container for Score and High Score */
+    /* UI Container for Score, High Score, Distance, and Time */
     #ui-container {
       position: fixed;
       top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: none; /* Hidden by default */
+      right: 10px; /* Moved to the right */
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       background: rgba(0, 0, 0, 0.5);
       padding: 10px 20px;
       border-radius: 10px;
       z-index: 20; /* Above other elements but below gameOver */
     }
 
-    /* Score and High Score Styling */
-    #score, #highScore {
+    /* Score, High Score, Distance, and Time Styling */
+    #score, #highScore, #distance, #time {
       font-size: 18px;
       color: white;
       margin: 5px 0;
@@ -60,10 +61,10 @@
       transform: translate(-50%, -50%);
       text-align: center;
       color: #FFFFFF;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.8);
       padding: 30px;
       border-radius: 10px;
-      z-index: 30; /* Above all other elements */
+      z-index: 40; /* Above all other elements */
     }
 
     /* Restart Button Styling */
@@ -90,7 +91,7 @@
       left: 50%;
       transform: translate(-50%, -50%);
       width: 150px;
-      max-height: min-content;
+      height: min-content;
       font-size: 18px;
       color: white;
       background: rgba(0, 114, 233, 0.8);
@@ -110,7 +111,8 @@
     #joystick-container {
       position: absolute;
       bottom: 20px;
-      left: 20px; /* Change to 'right: 20px;' if you prefer the right side */
+      left: 50%; /* Center horizontally */
+      transform: translateX(-50%); /* Adjust for centering */
       width: 100px;
       height: 100px;
       z-index: 30; /* Ensure it appears above other elements */
@@ -126,41 +128,26 @@
       border-radius: 50%;
       position: relative;
       touch-action: none; /* Prevent default touch behaviors */
+      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
     }
 
     /* Joystick Knob Styling */
     #joystick-knob {
-      width: 60px;
-      height: 60px;
+      width: 50px; /* Decreased size for better control */
+      height: 50px; /* Decreased size for better control */
       background: rgba(255, 255, 255, 0.6);
       border: 2px solid rgba(255, 255, 255, 0.9);
       border-radius: 50%;
       position: absolute;
-      top: 20px;
-      left: 20px;
-      transition: background 0.1s, transform 0.1s;
+      top: 25px; /* Adjusted for new knob size */
+      left: 25px; /* Adjusted for new knob size */
+      transition: box-shadow 0.3s, transform 0.1s;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     }
 
     /* Active State for Joystick Knob */
     #joystick-knob.active {
-      background: rgba(255, 255, 255, 0.9);
-    }
-
-    /* Visual Indicators for Actions */
-    #joystick-knob.accelerate {
-      background: rgba(0, 255, 0, 0.6); /* Green for accelerate */
-    }
-
-    #joystick-knob.decelerate {
-      background: rgba(255, 0, 0, 0.6); /* Red for decelerate */
-    }
-
-    #joystick-knob.turnLeft {
-      background: rgba(0, 0, 255, 0.6); /* Blue for left */
-    }
-
-    #joystick-knob.turnRight {
-      background: rgba(255, 255, 0, 0.6); /* Yellow for right */
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
     }
 
     /* Responsive Adjustments */
@@ -169,19 +156,29 @@
         width: 80px;
         height: 80px;
         bottom: 15px;
-        left: 15px;
+        left: 50%; /* Center horizontally */
+        transform: translateX(-50%);
       }
-      
+
       #joystick-knob {
-        width: 50px;
-        height: 50px;
-        top: 15px;
-        left: 15px;
+        width: 40px; /* Further decrease for better control */
+        height: 40px;
+        top: 20px;
+        left: 20px;
       }
 
       /* Show joystick only on mobile */
       #joystick-container {
         display: block;
+      }
+
+      /* Adjust UI container for smaller screens */
+      #ui-container {
+        padding: 8px 16px;
+      }
+
+      #score, #highScore, #distance, #time {
+        font-size: 16px;
       }
     }
 
@@ -203,10 +200,12 @@
   <!-- Continue Button -->
   <button id="continueButton">Start Game</button>
 
-  <!-- UI Container for Score and High Score (Hidden Initially) -->
+  <!-- UI Container for Score, High Score, Distance, and Time (Visible from Start) -->
   <div id="ui-container">
     <div id="score">Score: 0</div>
     <div id="highScore">High Score: 0</div>
+    <div id="distance">Distance: 0 m</div>
+    <div id="time">Time: 0 s</div>
   </div>
 
   <!-- Game Over Screen (Hidden Initially) -->
@@ -234,7 +233,9 @@
       0.1,
       1000
     );
-    camera.position.set(0, 2, 8);
+    // Default camera offset
+    const defaultCameraOffset = new THREE.Vector3(0, 2, 8);
+    camera.position.copy(defaultCameraOffset);
 
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -248,23 +249,24 @@
     directionalLight.position.set(10, 20, 10);
     scene.add(directionalLight);
 
-    // Ground
-    const roadGeometry = new THREE.PlaneGeometry(20, 200);
+    // Ground (Extended Road)
+    const roadGeometry = new THREE.PlaneGeometry(20, 10000); // Increased length for infinite road
     const roadMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
     const road = new THREE.Mesh(roadGeometry, roadMaterial);
     road.rotation.x = -Math.PI / 2;
     road.position.y = -0.1;
     scene.add(road);
 
-    // Lane Markers
+    // Lane Markers (Infinite Loop)
     const lanes = [-3, -1, 1, 3];
     const markers = [];
-    for (let i = 0; i < 40; i++) {
-      const markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
-      const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const totalMarkers = 100; // Increased number for seamless looping
+    for (let i = 0; i < totalMarkers; i++) {
       lanes.forEach((lane) => {
+        const markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
+        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-        marker.position.set(lane, 0.01, -5 * i);
+        marker.position.set(lane, 0.01, -50 * i); // Adjust spacing as needed
         markers.push(marker);
         scene.add(marker);
       });
@@ -279,9 +281,19 @@
     let gameOver = false;
     let moveLeft = false;
     let moveRight = false;
-    let velocity = 0;
-    const accelerationRate = 0.02; // Renamed to avoid conflict with 'acceleration' flag
-    const maxSpeed = 0.3;
+    let velocity = 5; // Base velocity (0.1 units/s)
+    const baseVelocity = 5; // 0.1 units/s
+    const maxVelocity = 10; // 0.7 units/s
+    const accelerationRate = 0.2; // Acceleration per second
+    const decelerationRate = 0.2; // Deceleration per second
+    let userCarLoaded = false; // Initialize the flag
+    let startTime; // To track driving time
+    let elapsedTime = 0; // Initialize elapsed time
+    let distance = 0; // Initialize distance
+    let animationId; // To track the animation frame
+    let previousTime = Date.now(); // For deltaTime calculation
+    let isOrbiting = false; // Flag for GameOver camera orbit
+    let currentCameraRotationY = 0; // Current rotation of the camera on Y-axis
 
     // Update High Score Display
     document.getElementById("highScore").textContent = `High Score: ${highScore}`;
@@ -298,7 +310,10 @@
         document.getElementById('continueButton').style.display = 'block';
       },
       undefined,
-      (error) => console.error('Error loading user car:', error)
+      (error) => {
+        console.error('Error loading user car:', error);
+        alert('Failed to load the user car. Please try refreshing the page.');
+      }
     );
 
     // Load Obstacle Models
@@ -312,31 +327,39 @@
         obstacleModel,
         (gltf) => {
           const obstacle = gltf.scene;
-          const lane = lanes[Math.floor(Math.random() * lanes.length)];
-          scene.add(obstacle);
-          obstacles.push(obstacle);
+          // Randomly position obstacle on the road, not strictly on lanes
+          const obstacleX = (Math.random() * 8) - 4; // Keep obstacles within -4 to +4 on x-axis
+          const obstacleZ = -100 - Math.random() * 500; // Spawn far on the horizon
 
-          // Set obstacle properties based on type
+          obstacle.position.set(obstacleX, 0.15, obstacleZ);
+
+          // Assign a random velocity between 0.1 and 0.4
+          obstacle.userData.velocity = 0.1 + Math.random() * 0.3;
+
+          // Adjust obstacle based on model type
           if (obstacleModel === 'Bike.glb') {
             obstacle.rotation.y = Math.PI / 2;
             obstacle.scale.set(0.6, 0.6, 0.6);
-            obstacle.position.set(lane, 0.4, -100 - Math.random() * 200);
+            obstacle.position.y = 0.4;
           } 
           if (obstacleModel === 'Bus.glb') {
             obstacle.scale.set(2, 2.2, 2.2);
             obstacle.rotation.y = Math.PI;
-            obstacle.position.set(lane, 0.4, -100 - Math.random() * 200);
+            obstacle.position.y = 0.4;
           }
           if (obstacleModel === 'TAXI.glb') {
             obstacle.scale.set(0.2, 0.17, 0.2);
             obstacle.rotation.y = Math.PI;
-            obstacle.position.set(lane, 0.15, -100 - Math.random() * 200);
+            obstacle.position.y = 0.15;
           }
           if (obstacleModel === 'LGV.glb') {
             obstacle.scale.set(0.28, 0.28, 0.28);
             obstacle.rotation.y = Math.PI;
-            obstacle.position.set(lane, 0.15, -100 - Math.random() * 200);
+            obstacle.position.y = 0.15;
           }
+
+          scene.add(obstacle);
+          obstacles.push(obstacle);
         },
         undefined,
         (error) => console.error('Error loading obstacle:', error)
@@ -352,14 +375,14 @@
     const joystickKnob = document.getElementById('joystick-knob');
 
     // Joystick Properties
-    const maxDistance = joystickBase.offsetWidth / 2;
+    const joystickMaxDistance = joystickBase.offsetWidth / 2;
     let joystickActive = false;
     let joystickX = 0;
     let joystickY = 0;
 
     // Control Flags
-    let accelerate = false;
-    let decelerate = false;
+    let accelerateInput = false;
+    let decelerateInput = false;
 
     // Touch Event Handlers for Joystick
     joystickBase.addEventListener('touchstart', startJoystick, { passive: false });
@@ -393,8 +416,8 @@
         joystickY = 0;
       }, 300);
       // Reset control flags
-      accelerate = false;
-      decelerate = false;
+      accelerateInput = false;
+      decelerateInput = false;
       moveLeft = false;
       moveRight = false;
     }
@@ -406,16 +429,16 @@
       const touchY = touch.clientY - rect.top - rect.height / 2;
 
       // Calculate distance from center
-      const distance = Math.min(Math.sqrt(touchX * touchX + touchY * touchY), maxDistance);
+      const distance = Math.min(Math.sqrt(touchX * touchX + touchY * touchY), joystickMaxDistance);
       const angle = Math.atan2(touchY, touchX);
 
       // Calculate joystick position
-      joystickX = (distance * Math.cos(angle)) / maxDistance; // Normalize between -1 and 1
-      joystickY = (distance * Math.sin(angle)) / maxDistance; // Normalize between -1 and 1
+      joystickX = (distance * Math.cos(angle)) / joystickMaxDistance; // Normalize between -1 and 1
+      joystickY = (distance * Math.sin(angle)) / joystickMaxDistance; // Normalize between -1 and 1
 
       // Move joystick knob
-      const knobX = (joystickX * maxDistance * 0.6); // 0.6 to limit knob movement within base
-      const knobY = (joystickY * maxDistance * 0.6);
+      const knobX = (joystickX * joystickMaxDistance * 0.6); // 0.6 to limit knob movement within base
+      const knobY = (joystickY * joystickMaxDistance * 0.6);
       joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
       // Update game controls based on joystick position
@@ -426,91 +449,118 @@
       // Dead zone radius
       const deadZone = 0.2;
 
-      // Reset classes for visual feedback
-      joystickKnob.classList.remove('accelerate', 'decelerate', 'turnLeft', 'turnRight');
-
       // y controls acceleration and deceleration
       if (y > deadZone) {
-        accelerate = true;
-        joystickKnob.classList.add('accelerate');
+        accelerateInput = true;
       } else {
-        accelerate = false;
+        accelerateInput = false;
       }
 
       if (y < -deadZone) {
-        decelerate = true;
-        joystickKnob.classList.add('decelerate');
+        decelerateInput = true;
       } else {
-        decelerate = false;
+        decelerateInput = false;
       }
 
       // x controls left and right turning
       if (x < -deadZone) {
         moveLeft = true;
-        joystickKnob.classList.add('turnLeft');
       } else {
         moveLeft = false;
       }
 
       if (x > deadZone) {
         moveRight = true;
-        joystickKnob.classList.add('turnRight');
       } else {
         moveRight = false;
       }
+    }
+
+    // Function to format time in minutes and seconds
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     }
 
     // Animate Function
     function animate() {
       if (gameOver) return;
 
-      requestAnimationFrame(animate);
+      animationId = requestAnimationFrame(animate);
+
+      const currentTime = Date.now();
+      const deltaTime = (currentTime - previousTime) / 1000; // in seconds
+      previousTime = currentTime;
+
+      // Update elapsed time
+      elapsedTime = (currentTime - startTime) / 1000; // in seconds
+      document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
 
       // Handle acceleration and deceleration
-      if (accelerate) {
-        velocity = Math.min(velocity + accelerationRate, maxSpeed);
-      } else if (decelerate) {
-        velocity = Math.max(velocity - accelerationRate, -maxSpeed); // Allow reverse if needed
+      if (accelerateInput) {
+        velocity = Math.min(velocity + accelerationRate * deltaTime, maxVelocity);
+        adjustCamera('accelerate');
+      } else if (decelerateInput) {
+        velocity = Math.max(velocity - decelerationRate * deltaTime, baseVelocity);
+        adjustCamera('decelerate');
       } else {
-        // Decelerate to zero when no input
-        if (velocity > 0) {
-          velocity = Math.max(velocity - accelerationRate, 0);
-        } else if (velocity < 0) {
-          velocity = Math.min(velocity + accelerationRate, 0);
+        // Smoothly return to base velocity if not at base
+        if (velocity > baseVelocity) {
+          velocity = Math.max(velocity - decelerationRate * deltaTime, baseVelocity);
+          adjustCamera('decelerate');
+        } else if (velocity < baseVelocity) {
+          velocity = Math.min(velocity + accelerationRate * deltaTime, baseVelocity);
+          adjustCamera('accelerate');
+        } else {
+          resetCamera();
         }
       }
 
-      // Handle turning
+      // Update distance based on velocity and deltaTime
+      distance += velocity * deltaTime * 2; // Multiplied by 2 as per requirement
+      document.getElementById("distance").textContent = `Distance: ${distance.toFixed(1)} m`;
+
+      // Handle turning with rotation limits and translate on X-axis
       if (moveLeft) {
         // Rotate left with limit
-        if (MTC.rotation.y < Math.PI / 4) { // 45 degrees
+        if (MTC.rotation.y < Math.PI / 8) { // 22.5 degrees for slight rotation
           MTC.rotation.y += 0.05;
         }
+        // Translate left
+        MTC.position.x -= 0.05; // Adjust translation speed as needed
+
+        // Adjust camera rotation
+        currentCameraRotationY = THREE.MathUtils.lerp(currentCameraRotationY, 0.05, 0.1); // Slight rotation left
       }
       if (moveRight) {
         // Rotate right with limit
-        if (MTC.rotation.y > -Math.PI / 4) { // -45 degrees
+        if (MTC.rotation.y > -Math.PI / 8) { // -22.5 degrees for slight rotation
           MTC.rotation.y -= 0.05;
         }
+        // Translate right
+        MTC.position.x += 0.05; // Adjust translation speed as needed
+
+        // Adjust camera rotation
+        currentCameraRotationY = THREE.MathUtils.lerp(currentCameraRotationY, -0.05, 0.1); // Slight rotation right
       }
 
-      // Reset rotation to zero if not turning
+      // Smoothly rotate back to 0 if not turning
       if (!moveLeft && !moveRight) {
-        // Smoothly rotate back to 0
+        currentCameraRotationY = THREE.MathUtils.lerp(currentCameraRotationY, 0, 0.1);
         MTC.rotation.y *= 0.9; // Damping factor
       }
 
-      // Limit rotation to ±45 degrees
-      MTC.rotation.y = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, MTC.rotation.y));
+      // Apply rotation to camera
+      camera.rotation.y = currentCameraRotationY;
 
-      // Update the car's position based on velocity
+      // Clamp rotation.y to ±22.5 degrees
+      MTC.rotation.y = THREE.MathUtils.clamp(MTC.rotation.y, -Math.PI / 8, Math.PI / 8);
+
+      // Update the car's position based on velocity and deltaTime
       if (MTC) {
-        MTC.position.x += velocity;
+        MTC.position.z -= velocity * deltaTime; // Move forward by decreasing z
       }
-
-      // Easing during speed transitions (Optional)
-      // const easingFactor = 0.1;
-      // MTC.position.x += (velocity - MTC.position.x) * easingFactor;
 
       // Visual Feedback For Turning Movement
       if (moveLeft) {
@@ -522,74 +572,208 @@
       }
 
       // Boundary checks to prevent the car from moving out of lanes
-      MTC.position.x = Math.max(-3, Math.min(3, MTC.position.x));
+      MTC.position.x = Math.max(-4, Math.min(4, MTC.position.x));
 
-      // Update lane markers
+      // Update camera position to follow the car
+      updateCamera();
+
+      // Update lane markers based on car's velocity
+      const markerSpeed = velocity; // Markers move based on car's speed
       markers.forEach((marker) => {
-        marker.position.z += 0.1;
-        if (marker.position.z > 5) marker.position.z = -195;
+        marker.position.z += markerSpeed * deltaTime;
+        if (marker.position.z > 5) marker.position.z = -500; // Reset to start for infinite loop
       });
 
       // Update obstacles
       obstacles.forEach((obstacle, index) => {
-        obstacle.position.z += 0.1;
+        obstacle.position.z += obstacle.userData.velocity * deltaTime; // Move obstacle based on its own velocity
+
         if (obstacle.position.z > 5) {
           obstacles.splice(index, 1);
           scene.remove(obstacle);
           score++;
-          document.getElementById("score").textContent = `Score: ${score}`;
-          if (score > highScore) {
-            highScore = score;
-            localStorage.setItem('highScore', highScore);
-            document.getElementById("highScore").textContent = `High Score: ${highScore}`;
-          }
+          updateScoreUI();
+          updateHighScore();
         }
 
-        // Collision detection
-        if (MTC && MTC.position.distanceTo(obstacle.position) < 0.5) {
+        // Collision detection using bounding boxes for better accuracy
+        const carBox = new THREE.Box3().setFromObject(MTC);
+        const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+        if (carBox.intersectsBox(obstacleBox)) {
+          // Trigger GameOver camera animation
           gameOver = true;
-          document.getElementById("finalScore").textContent = score;
-          document.getElementById("gameOver").style.display = "block";
-          document.getElementById("ui-container").style.display = "block";
+          performGameOverCameraAnimation(obstacle);
+          // Stop the animation loop after the animation completes
         }
       });
 
       renderer.render(scene, camera);
     }
 
+    // Update Camera Position to Follow the Car
+    function updateCamera() {
+      // Calculate camera's desired position based on car's position and current camera offset
+      const desiredCameraPosition = new THREE.Vector3(
+        MTC.position.x,
+        MTC.position.y + 2, // y offset
+        MTC.position.z + 8 // z offset
+      );
+
+      // Move camera towards desired position
+      camera.position.lerp(desiredCameraPosition, 0.1); // Adjust lerp factor for smoothness
+
+      // Look at the car
+      camera.lookAt(MTC.position);
+    }
+
+    // Adjust Camera Based on Acceleration or Deceleration
+    function adjustCamera(action) {
+      // Define offsets for inertia visual effects
+      const accelerateOffset = new THREE.Vector3(0, 2.2, 8.5); // Slightly higher and further back
+      const decelerateOffset = new THREE.Vector3(0, 1.8, 7.5); // Slightly lower and closer
+
+      if (action === 'accelerate') {
+        const desiredOffset = accelerateOffset;
+        const desiredCameraPosition = new THREE.Vector3(
+          MTC.position.x + desiredOffset.x,
+          MTC.position.y + desiredOffset.y,
+          MTC.position.z + desiredOffset.z
+        );
+        camera.position.lerp(desiredCameraPosition, 0.05); // Smooth transition
+      } else if (action === 'decelerate') {
+        const desiredOffset = decelerateOffset;
+        const desiredCameraPosition = new THREE.Vector3(
+          MTC.position.x + desiredOffset.x,
+          MTC.position.y + desiredOffset.y,
+          MTC.position.z + desiredOffset.z
+        );
+        camera.position.lerp(desiredCameraPosition, 0.05); // Smooth transition
+      }
+    }
+
+    // Reset Camera to Default Position
+    function resetCamera() {
+      const desiredCameraPosition = new THREE.Vector3(
+        MTC.position.x + defaultCameraOffset.x,
+        MTC.position.y + defaultCameraOffset.y,
+        MTC.position.z + defaultCameraOffset.z
+      );
+      camera.position.lerp(desiredCameraPosition, 0.05); // Smooth transition back
+      camera.lookAt(MTC.position);
+    }
+
+    // Perform GameOver Camera Animation: Orbit around collision point
+    function performGameOverCameraAnimation(obstacle) {
+      if (isOrbiting) return; // Prevent multiple triggers
+      isOrbiting = true;
+
+      // Freeze the frame
+      cancelAnimationFrame(animationId);
+
+      // Determine collision point
+      const carPosition = new THREE.Vector3();
+      MTC.getWorldPosition(carPosition);
+      const obstaclePosition = new THREE.Vector3();
+      obstacle.getWorldPosition(obstaclePosition);
+      const collisionPoint = new THREE.Vector3().addVectors(carPosition, obstaclePosition).multiplyScalar(0.5);
+
+      // Define the orbit path: a circle around the collision point
+      const orbitRadius = 10; // Adjust as needed
+      const orbitDuration = 2000; // 2 seconds in milliseconds
+      const startTimeAnimation = Date.now();
+
+      function orbit() {
+        const currentTime = Date.now();
+        const elapsed = currentTime - startTimeAnimation;
+        const progress = Math.min(elapsed / orbitDuration, 1); // Progress between 0 and 1
+
+        // Calculate angle based on progress
+        const angle = progress * 2 * Math.PI; // Complete a full orbit
+
+        // Calculate new camera position on the orbit
+        const newX = collisionPoint.x + orbitRadius * Math.cos(angle);
+        const newZ = collisionPoint.z + orbitRadius * Math.sin(angle);
+        const newY = collisionPoint.y + 5; // Slightly above
+
+        camera.position.set(newX, newY, newZ);
+
+        // Make the camera look at the collision point
+        camera.lookAt(collisionPoint);
+
+        if (progress < 1) {
+          requestAnimationFrame(orbit);
+        } else {
+          // After orbit, display game over screen
+          document.getElementById("finalScore").textContent = score.toFixed(1);
+          document.getElementById("gameOver").style.display = "block";
+        }
+      }
+
+      orbit(); // Start the orbit animation
+    }
+
     // Start Game on Continue Button Click
     document.getElementById("continueButton").addEventListener("click", () => {
       document.getElementById("continueButton").style.display = "none";
+      startTime = Date.now(); // Initialize start time
+      previousTime = Date.now(); // Initialize previousTime
       animate();
     });
 
-    // Keyboard Controls for Desktop
+    // Keyboard Controls for Desktop (Arrow Keys)
     window.addEventListener("keydown", (e) => {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        e.preventDefault(); // Prevent default actions like scrolling
+      }
       if (e.key === "ArrowLeft") moveLeft = true;
       if (e.key === "ArrowRight") moveRight = true;
-      if (e.key === "ArrowUp") accelerate = true;
-      if (e.key === "ArrowDown") decelerate = true;
+      if (e.key === "ArrowUp") accelerateInput = true;
+      if (e.key === "ArrowDown") decelerateInput = true;
     });
 
     window.addEventListener("keyup", (e) => {
       if (e.key === "ArrowLeft") moveLeft = false;
       if (e.key === "ArrowRight") moveRight = false;
-      if (e.key === "ArrowUp") accelerate = false;
-      if (e.key === "ArrowDown") decelerate = false;
+      if (e.key === "ArrowUp") accelerateInput = false;
+      if (e.key === "ArrowDown") decelerateInput = false;
     });
 
-    // Game Over Function
+    // Update Score UI
+    function updateScoreUI() {
+      // New scoring formula: distance multiplied by a factor (e.g., 10)
+      const calculatedScore = distance * 10;
+      document.getElementById("score").textContent = `Score: ${calculatedScore.toFixed(1)}`;
+    }
+
+    // Update High Score
+    function updateHighScore() {
+      const calculatedScore = distance * 10;
+      if (calculatedScore > highScore) {
+        highScore = calculatedScore.toFixed(1);
+        localStorage.setItem('highScore', highScore);
+        document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+      }
+    }
+
+    // Game Over Function (Optional, if you want to call it elsewhere)
     function endGame() {
       gameOver = true;
-      document.getElementById("finalScore").textContent = score;
+      document.getElementById("finalScore").textContent = (distance * 10).toFixed(1);
       document.getElementById("gameOver").style.display = "block";
-      document.getElementById("ui-container").style.display = "block";
+      cancelAnimationFrame(animationId);
     }
 
     // Restart Button Functionality
     document.getElementById("restartButton").addEventListener("click", () => {
+      // Cancel any existing animation frame
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+
       // Reset game state
       score = 0;
+      elapsedTime = 0;
+      distance = 0;
       gameOver = false;
       obstacles.forEach((obstacle) => scene.remove(obstacle)); // Remove all obstacles
       obstacles = []; // Clear the obstacles array
@@ -600,14 +784,28 @@
         MTC.rotation.z = 0; // Reset tilt
       }
 
+      // Reset camera rotation
+      currentCameraRotationY = 0;
+      camera.rotation.y = 0;
+
       // Reset UI elements
       document.getElementById("score").textContent = `Score: ${score}`;
       document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+      document.getElementById("distance").textContent = `Distance: ${distance} m`;
+      document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
       document.getElementById("gameOver").style.display = "none";
-      document.getElementById("ui-container").style.display = "none";
 
       // Restart animation loop
+      startTime = Date.now(); // Reinitialize start time
+      previousTime = Date.now(); // Reset previousTime
       animate();
+    });
+
+    // Handle Window Resize for Responsiveness
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
     });
   </script>
 </body>
