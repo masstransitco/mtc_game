@@ -94,7 +94,7 @@
       position: absolute;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -60%);
+      transform: translate(-50%, -55%); /* Nudged down slightly */
       font-size: 24px; /* Adjust as needed */
       color: red;
       font-weight: bold;
@@ -1099,10 +1099,11 @@
 
     // === 18. Collision Detection with Obstacles and Barriers ===
     function checkCollisions() {
-      const carBox = new THREE.Box3().setFromObject(MTC);
+      const carBox = new THREE.Box3().setFromObject(MTC).expandByScalar(0.5); // Increased sensitivity by expanding the box
+
       // Check collisions with obstacles
       for (let obstacle of obstacles) {
-        const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+        const obstacleBox = new THREE.Box3().setFromObject(obstacle).expandByScalar(0.5); // Increased sensitivity
         if (carBox.intersectsBox(obstacleBox)) {
           // Increment collision count
           collisionCount += 1;
@@ -1127,10 +1128,11 @@
           break; // Exit loop after handling collision
         }
       }
+
       // Check collisions with barriers
       if (!gameOver) { // Only check barriers if game is not already over
         for (let barrier of barriers) {
-          const barrierBox = new THREE.Box3().setFromObject(barrier);
+          const barrierBox = new THREE.Box3().setFromObject(barrier).expandByScalar(0.5); // Increased sensitivity
           if (carBox.intersectsBox(barrierBox)) {
             // Increment collision count
             collisionCount += 1;
@@ -1172,6 +1174,14 @@
       // Hide speedometer and warning indicator
       document.getElementById("speedometer").style.display = "none";
       document.getElementById("warningIndicator").style.display = "none";
+
+      // Clear all obstacles
+      obstacles.forEach((obstacle) => {
+        obstacleGroup.remove(obstacle);
+      });
+      obstacles.length = 0; // Clear the array
+
+      // Optionally, reset user car position or other properties here if needed
     }
 
     // === 21. Update Leaderboard ===
@@ -1302,10 +1312,13 @@
       document.getElementById("distance").textContent = `Distance: ${distance} m`;
       document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
       document.getElementById("speedometer").textContent = `${(velocity * 3.6).toFixed(0)} km/h`;
+      document.getElementById("speedometer").style.display = "block"; // Ensure speedometer is visible
       updateBestTimeDisplay();
 
       // Hide warning indicator
       document.getElementById("warningIndicator").style.display = "none";
+      document.getElementById("warningIndicator").classList.remove('flashing');
+      document.getElementById("warningIndicator").style.animation = '';
 
       startTime = Date.now(); // Reinitialize start time
       previousTime = Date.now(); // Reset previousTime
