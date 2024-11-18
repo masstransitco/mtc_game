@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    
   <meta charset="UTF-8">
   <meta
     name="viewport"
@@ -9,8 +10,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta
     name="apple-mobile-web-app-status-bar-style"
-    content="black-translucent"
-  />
+    content="black-translucent"/>
+ 
   <title>Aircity Technologies</title>
   <style>
     /* Basic Reset and Styling */
@@ -31,10 +32,10 @@
       z-index: 10; /* Ensure it appears on top of the canvas */
     }
 
-    /* UI Container for Score, High Score, Distance, and Time */
+    /* UI Container for Best Time, Distance, and Time */
     #ui-container {
       position: fixed;
-      top: 10px;
+      top: 60px; /* Adjusted to make room for the speedometer */
       right: 10px; /* Moved to the right */
       display: flex;
       flex-direction: column;
@@ -45,11 +46,71 @@
       z-index: 20; /* Above other elements but below gameOver */
     }
 
-    /* Score, High Score, Distance, and Time Styling */
-    #score, #highScore, #distance, #time {
+    /* Best Time, Distance, Time Styling */
+    #bestTime, #distance, #time {
       font-size: 18px;
       color: white;
       margin: 5px 0;
+    }
+
+    /* Speedometer Styling */
+    #speedometer {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 22px; /* Decreased by 30% from 32px */
+      color: #FFFFFF; /* Changed to white */
+      font-family: 'Orbitron', sans-serif; /* Changed font */
+      text-shadow: 2px 2px 8px rgba(255, 255, 255, 0.8); /* Added stronger shadow for illumination */
+      z-index: 20;
+    }
+
+    /* Warning Indicator Styling */
+    #warningIndicator {
+      display: none; /* Hidden by default */
+      position: fixed;
+      top: 60px; /* Positioned under the speedometer */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 50px; /* Adjust as needed */
+      height: 50px; /* Adjust as needed */
+      z-index: 25; /* Above speedometer */
+    }
+
+    /* Red Circle */
+    #warningCircle {
+      width: 100%;
+      height: 100%;
+      border: 1.5px solid red;
+      border-radius: 50%;
+      box-sizing: border-box;
+      position: relative;
+      background: transparent;
+    }
+
+    /* Exclamation Mark */
+    #warningExclamation {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -60%);
+      font-size: 24px; /* Adjust as needed */
+      color: red;
+      font-weight: bold;
+      opacity: 0.5;
+    }
+
+    /* Flashing Animation */
+    @keyframes flash {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
+    /* Flashed State */
+    .flashing {
+      animation: flash 1s infinite;
     }
 
     /* Game Over Container */
@@ -67,21 +128,114 @@
       z-index: 40; /* Above all other elements */
     }
 
-    /* Restart Button Styling */
-    #restartButton {
+    /* Game Complete Screen (Hidden Initially) */
+    #gameComplete {
+      display: none; /* Hidden by default */
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #FFFFFF;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 30px;
+      border-radius: 10px;
+      z-index: 40; /* Above all other elements */
+    }
+
+    /* Leaderboard Styling */
+    #leaderboard {
       margin-top: 20px;
+      text-align: left;
+    }
+
+    #leaderboard h2 {
+      margin-bottom: 10px;
+    }
+
+    #leaderboard ul {
+      list-style: none;
+      padding: 0;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #leaderboard li {
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Enhanced Leaderboard Styling */
+    #leaderboardList, #liveLeaderboardList {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    #leaderboardList li, #liveLeaderboardList li {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 5px 10px;
+      border-radius: 5px;
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #leaderboardList li span, #liveLeaderboardList li span {
+      color: #FFFFFF;
+    }
+
+    /* Input Field for Name Entry */
+    #nameInputContainer {
+      margin-top: 20px;
+    }
+
+    #nameInput {
       font-size: 18px;
-      padding: 10px 20px;
-      color: #0072E9;
-      background: #FFFFFF;
+      padding: 5px;
+      width: 200px;
+      height: 30px; /* Ensure consistent height */
+    }
+
+    /* Submit Button Styling */
+    #submitNameButton {
+      font-size: 24px; /* Increased size for better visibility */
+      width: 35px; /* Increased size slightly */
+      height: 35px;
+      padding: 0;
+      margin-left: 10px;
+      text-align: center;
+      line-height: 35px; /* Center the arrow vertically */
+      background: #000000; /* Changed to black */
+      color: #FFFFFF; /* Arrow color to white */
       border: none;
       border-radius: 5px;
       cursor: pointer;
       transition: background-color 0.3s;
     }
 
-    #restartButton:hover {
-      background-color: #f0f0f0;
+    #submitNameButton:hover {
+      background-color: #333333;
+    }
+
+    /* Restart and Continue Button Styling */
+    #restartButton, #restartButtonComplete, #continueLink, #continueLinkComplete {
+      margin-top: 20px;
+      font-size: 18px;
+      padding: 10px 20px;
+      color: #FFFFFF;
+      background: #0072E9; /* Changed to uber blue */
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    #restartButton:hover, #restartButtonComplete:hover, #continueLink:hover, #continueLinkComplete:hover {
+      background-color: #005bb5;
     }
 
     /* Continue Button Styling */
@@ -116,7 +270,8 @@
       width: 100px;
       height: 100px;
       z-index: 30; /* Ensure it appears above other elements */
-      display: none; /* Hidden on desktop, shown on mobile via media query */
+      display: block; /* Visible on all breakpoints */
+      cursor: pointer; /* Indicate interactability */
     }
 
     /* Joystick Base Styling */
@@ -167,32 +322,48 @@
         left: 20px;
       }
 
-      /* Show joystick only on mobile */
-      #joystick-container {
-        display: block;
-      }
-
       /* Adjust UI container for smaller screens */
       #ui-container {
         padding: 8px 16px;
       }
 
-      #score, #highScore, #distance, #time {
+      #bestTime, #distance, #time {
         font-size: 16px;
+      }
+
+      #speedometer {
+        font-size: 19px; /* 22px decreased by 30% approx */
+      }
+
+      /* Adjust warning indicator size for smaller screens */
+      #warningIndicator {
+        width: 40px;
+        height: 40px;
+      }
+
+      #warningExclamation {
+        font-size: 20px;
       }
     }
 
-    /* Hide joystick on desktop */
-    @media (min-width: 601px) {
-      #joystick-container {
-        display: none;
-      }
-    }
+    /* Import Futuristic Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Audiowide&display=swap');
   </style>
   <!-- Three.js Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-02XLDFLRGX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-02XLDFLRGX');
+</script>
+
 <body>
   <!-- Logo -->
   <img id="logo" src="logo.png" alt="MTC Logo">
@@ -200,10 +371,19 @@
   <!-- Continue Button -->
   <button id="continueButton">Start Game</button>
 
-  <!-- UI Container for Score, High Score, Distance, and Time (Visible from Start) -->
+  <!-- Speedometer -->
+  <div id="speedometer">25 km/h</div>
+
+  <!-- Warning Indicator (Hidden Initially) -->
+  <div id="warningIndicator">
+    <div id="warningCircle">
+      <div id="warningExclamation">!</div>
+    </div>
+  </div>
+
+  <!-- UI Container for Best Time, Distance, and Time -->
   <div id="ui-container">
-    <div id="score">Score: 0</div>
-    <div id="highScore">High Score: 0</div>
+    <div id="bestTime">Best Time: N/A</div>
     <div id="distance">Distance: 0 m</div>
     <div id="time">Time: 0 s</div>
   </div>
@@ -211,19 +391,46 @@
   <!-- Game Over Screen (Hidden Initially) -->
   <div id="gameOver">
     <h1>Game Over</h1>
-    <p>Your Score: <span id="finalScore">0</span></p>
+    <p>Driving Time: <span id="finalTime">0</span></p>
     <button id="restartButton">Play Again</button>
+    <!-- New Continue Button -->
+    <button id="continueLink">Continue →</button>
   </div>
 
-  <!-- Joystick Container (Visible Only on Mobile) -->
+  <!-- Game Complete Screen (Hidden Initially) -->
+  <div id="gameComplete">
+    <h1 style="font-size: 22px;">Trip Completed</h1> <!-- Decreased size by 30% -->
+    <p>Your Time: <span id="completionTime">0</span></p>
+    <div id="leaderboard">
+      <h2>Leaderboard</h2>
+      <ul id="leaderboardList"></ul>
+    </div>
+    <div id="nameInputContainer" style="display: none;">
+      <p>Enter your name:</p> <!-- Capitalization adjusted -->
+      <input type="text" id="nameInput" maxlength="10">
+      <button id="submitNameButton">↑</button> <!-- Changed to upward arrow -->
+    </div>
+    <button id="restartButtonComplete">Play Again</button>
+    <!-- New Continue Button -->
+    <button id="continueLinkComplete">Continue →</button>
+    <!-- Removed repeated leaderboard -->
+  </div>
+
+  <!-- Joystick Container (Visible on all breakpoints and interact-able with mouse) -->
   <div id="joystick-container">
     <div id="joystick-base">
       <div id="joystick-knob"></div>
     </div>
   </div>
 
+  <!-- Instructions Container -->
+  <div id="instructions" style="position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); color: white; text-align: center; z-index: 35;">
+    <p>Use joystick to accelerate, decelerate, and steer.</p>
+    <p>Avoid colliding with other cars!</p>
+  </div>
+
   <script>
-    // THREE.js Scene Setup
+    // === 1. THREE.js Scene Setup ===
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1C262D); // Uber Dark Blue Sky
 
@@ -231,171 +438,311 @@
       75,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      3000 // Increased to accommodate extended road
     );
     // Default camera offset
-    const defaultCameraOffset = new THREE.Vector3(0, 2, 8);
+    const defaultCameraOffset = new THREE.Vector3(0, 5, 15);
     camera.position.copy(defaultCameraOffset);
 
-    const renderer = new THREE.WebGLRenderer();
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    // Enable shadows
+    renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Adjusted intensity
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // Increased intensity
     directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true; // Enable shadows for the light
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 5000;
     scene.add(directionalLight);
 
-    // Ground (Extended Road)
-    const roadGeometry = new THREE.PlaneGeometry(20, 10000); // Increased length for infinite road
+    // === 2. Grouping Environment Elements ===
+    const environmentGroup = new THREE.Group();
+    scene.add(environmentGroup);
+
+    // Road
+    const roadWidth = 12; // Increased Road width for better integration with barriers
+    const roadLength = 2000; // Road length extended to 2000 meters
+    const roadGeometry = new THREE.PlaneGeometry(roadWidth, roadLength);
     const roadMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
     const road = new THREE.Mesh(roadGeometry, roadMaterial);
     road.rotation.x = -Math.PI / 2;
-    road.position.y = -0.1;
-    scene.add(road);
+    road.position.y = 0;
+    road.receiveShadow = true; // Receive shadows
+    environmentGroup.add(road);
 
-    // Lane Markers (Infinite Loop) 
-    const lanes = [-3, -1, 1, 3];
+    // Lane Markers
+    const lanes = [-4, -2, 0, 2, 4]; // Adjusted lane positions for roadWidth=12
     const markers = [];
-    const totalMarkers = 50; // Increased number for seamless looping
+    const originalMarkerSpacing = 25; // Original spacing in meters
+    const markerSpacing = originalMarkerSpacing * 0.35; // Decreased by 65%
+    const markerScaleZ = 5 * 0.12; // 12% of current value
+    const totalMarkers = Math.ceil(roadLength / markerSpacing) * lanes.length;
     for (let i = 0; i < totalMarkers; i++) {
-      lanes.forEach((lane) => {
-        const markerGeometry = new THREE.BoxGeometry(0.1, 0.01, 1);
-        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-        marker.position.set(lane, 0.01, -25 * i); // Adjust spacing as needed original -50
-        markers.push(marker);
-        scene.add(marker);
-      });
+      const laneIndex = i % lanes.length;
+      const lane = lanes[laneIndex];
+      const markerGeometry = new THREE.BoxGeometry(0.1, 0.01, markerScaleZ); // Scaled Z-axis
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+      const markerRow = Math.floor(i / lanes.length);
+      marker.position.set(lane, 0.005, -markerSpacing * markerRow);
+      markers.push(marker);
+      environmentGroup.add(marker);
     }
 
-    // GLTF Loader
-    const loader = new THREE.GLTFLoader();
+    // Bridge Elements on Both Sides
+    const bridgeGroup = new THREE.Group();
+    environmentGroup.add(bridgeGroup);
+
+    const bridgeSpanGeometry = new THREE.BoxGeometry(10, 0.5, 2); // Span
+    const bridgeSpanMaterial = new THREE.MeshLambertMaterial({ color: 0xAAAAAA }); // Lighter gray
+
+    const bridgeTowerGeometry = new THREE.CylinderGeometry(0.3, 0.3, 10, 32); // Tower
+    const bridgeTowerMaterial = new THREE.MeshLambertMaterial({ color: 0xAAAAAA }); // Lighter gray
+
+    const bridgeCableGeometry = new THREE.CylinderGeometry(0.05, 0.05, 10, 8); // Cable
+    const bridgeCableMaterial = new THREE.MeshLambertMaterial({ color: 0xCCCCCC }); // Lighter gray
+
+    const bridgeLength = 2000; // Total length of the bridge
+    const bridgeSpacing = 50; // Spacing between bridge sections
+
+    for (let i = -bridgeLength / 2; i <= bridgeLength / 2; i += bridgeSpacing) {
+      // Left Side
+      const towerLeft = new THREE.Mesh(bridgeTowerGeometry, bridgeTowerMaterial);
+      towerLeft.position.set(-roadWidth / 2 - 2, 5, i);
+      bridgeGroup.add(towerLeft);
+
+      const spanLeft = new THREE.Mesh(bridgeSpanGeometry, bridgeSpanMaterial);
+      spanLeft.position.set(-roadWidth / 2 - 2, 10, i);
+      bridgeGroup.add(spanLeft);
+
+      const cableLeft = new THREE.Mesh(bridgeCableGeometry, bridgeCableMaterial);
+      cableLeft.rotation.z = Math.PI / 2;
+      cableLeft.position.set(-roadWidth / 2 - 2, 10, i);
+      bridgeGroup.add(cableLeft);
+
+      // Right Side
+      const towerRight = new THREE.Mesh(bridgeTowerGeometry, bridgeTowerMaterial);
+      towerRight.position.set(roadWidth / 2 + 2, 5, i);
+      bridgeGroup.add(towerRight);
+
+      const spanRight = new THREE.Mesh(bridgeSpanGeometry, bridgeSpanMaterial);
+      spanRight.position.set(roadWidth / 2 + 2, 10, i);
+      bridgeGroup.add(spanRight);
+
+      const cableRight = new THREE.Mesh(bridgeCableGeometry, bridgeCableMaterial);
+      cableRight.rotation.z = Math.PI / 2;
+      cableRight.position.set(roadWidth / 2 + 2, 10, i);
+      bridgeGroup.add(cableRight);
+
+      // Add Amber Lights on Towers with adjusted opacity and projection
+      const amberLightGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+      const amberLightMaterial = new THREE.MeshBasicMaterial({ color: 0xFFBF00, transparent: true, opacity: 0.1 }); // 10% opacity
+
+      const lightLeft = new THREE.Mesh(amberLightGeometry, amberLightMaterial);
+      lightLeft.position.set(-roadWidth / 2 - 2, 10.5, i);
+      bridgeGroup.add(lightLeft);
+
+      const lightRight = new THREE.Mesh(amberLightGeometry, amberLightMaterial);
+      lightRight.position.set(roadWidth / 2 + 2, 10.5, i);
+      bridgeGroup.add(lightRight);
+
+      // Shorten light beams to 5% of original length and simulate radial blur
+      const originalBeamHeight = 5; // Assuming original height was 5
+      const shortenedBeamHeight = originalBeamHeight * 0.05; // 5%
+      const lightBeamGeometry = new THREE.ConeGeometry(1, shortenedBeamHeight, 32);
+      const lightBeamMaterial = new THREE.MeshBasicMaterial({ color: 0xFFBF00, transparent: true, opacity: 0.05 }); // 5% opacity for beams
+
+      const beamLeft = new THREE.Mesh(lightBeamGeometry, lightBeamMaterial);
+      beamLeft.position.set(-roadWidth / 2 - 2, 10, i);
+      beamLeft.rotation.x = Math.PI / 2;
+      scene.add(beamLeft);
+
+      const beamRight = new THREE.Mesh(lightBeamGeometry, lightBeamMaterial);
+      beamRight.position.set(roadWidth / 2 + 2, 10, i);
+      beamRight.rotation.x = Math.PI / 2;
+      scene.add(beamRight);
+    }
+
+    // === 3. Declare the 'barriers' Array Before Usage ===
+    // Barriers Array for Collision Detection
+    const barriers = [];
+
+    // === 4. Erected Concrete Barriers on Both Sides of the Road ===
+    // Creating Two Continuous Barriers
+    const barrierGroup = new THREE.Group();
+    environmentGroup.add(barrierGroup);
+
+    // === 5. Load User Car (mtc.glb) ===
+    const loaderGLTF = new THREE.GLTFLoader();
     let MTC;
-    let obstacles = [];
-    let score = 0;
-    let highScore = localStorage.getItem('highScore') || 0;
     let gameOver = false;
     let moveLeft = false;
     let moveRight = false;
-    let velocity = 1; // Base velocity (0.1 units/s)
-    const baseVelocity = 1; // 0.1 units/s
-    const maxVelocity = 20; // 0.7 units/s
-    const accelerationRate = 3; // Acceleration per second 0.2
-    const decelerationRate = 5; // Deceleration per second 0.2
+    let velocity = 6.944; // Base velocity (25 km/h in m/s)
+    const baseVelocity = 6.944; // 25 km/h in m/s
+    const minVelocity = 0.278; // 1 km/h in m/s
+    const maxVelocity = 44.444; // 160 km/h in m/s
+    const accelerationRate = 5; // Acceleration per second (adjusted)
+    const decelerationRate = 5; // Deceleration per second (adjusted)
     let userCarLoaded = false; // Initialize the flag
     let startTime; // To track driving time
     let elapsedTime = 0; // Initialize elapsed time
     let distance = 0; // Initialize distance
     let animationId; // To track the animation frame
     let previousTime = Date.now(); // For deltaTime calculation
-    let isOrbiting = false; // Flag for GameOver camera orbit
-    let currentCameraRotationY = 0; // Current rotation of the camera on Y-axis
+    let currentCameraRotationY = 0; // Initialize camera rotation variable
+    let gameCompleted = false; // Flag for game completion
+    let joystickStrength = 0; // Initialize joystick strength
 
-    // Update High Score Display
-    document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+    // Collision Counter
+    let collisionCount = 0;
 
-    // Load User Car
-    loader.load(
-      'MTC.glb',
+    // Leaderboard
+    let leaderboard = JSON.parse(localStorage.getItem('leaderboard')) || [];
+
+    // === 6. Update Best Time Display ===
+    function updateBestTimeDisplay() {
+      if (leaderboard.length > 0) {
+        document.getElementById("bestTime").textContent = `Best Time: ${formatTime(leaderboard[0].time)}`;
+      } else {
+        document.getElementById("bestTime").textContent = `Best Time: N/A`;
+      }
+    }
+
+    updateBestTimeDisplay();
+
+    // === 7. Load User Car (mtc.glb) ===
+    loaderGLTF.load(
+      'mtc.glb', // Ensure this path is correct
       (gltf) => {
         MTC = gltf.scene;
-        MTC.position.set(0, 0.15, 4);
-        MTC.scale.set(1, 1, 1);
-        scene.add(MTC);
+        MTC.position.set(0, 1.1, 0); // Adjust y to be above the barrier (assuming barrierHeight = 1.1)
+        MTC.scale.set(2.2, 2.2, 2.2); // Changed scale from (1,1,1) to (2.2, 2.2, 2.2)
+        MTC.castShadow = true; // Cast shadows
+        MTC.receiveShadow = true; // Receive shadows
+        environmentGroup.add(MTC);
         userCarLoaded = true;
-        document.getElementById('continueButton').style.display = 'block';
+        document.getElementById('instructions').style.display = "block"; // Show instructions
+        console.log("User car (mtc.glb) loaded successfully.");
+
+        // After user car is loaded, setup barriers based on car dimensions
+        setupBarriers();
       },
       undefined,
       (error) => {
-        console.error('Error loading user car:', error);
+        console.error('Error loading user car (mtc.glb):', error);
         alert('Failed to load the user car. Please try refreshing the page.');
       }
     );
 
-    // Load Obstacle Models
-    const obstacleModels = ['Bike.glb', 'TAXI.glb', 'LGV.glb', 'Bus.glb', 'KMB.glb', 'Llm.glb'];
-
-    function createObstacle() {
-      if (!userCarLoaded) return;
-
-      const obstacleModel = obstacleModels[Math.floor(Math.random() * obstacleModels.length)];
-      loader.load(
-        obstacleModel,
-        (gltf) => {
-          const obstacle = gltf.scene;
-          // Randomly position obstacle on the road, not strictly on lanes
-          const obstacleX = (Math.random() * 8) - 4; // Keep obstacles within -4 to +4 on x-axis
-          const obstacleZ = -100 - Math.random() * 400; // Spawn far on the horizon //original 500
-
-          obstacle.position.set(obstacleX, 0.15, obstacleZ);
-
-          // Assign a random velocity between 0.1 and 0.4
-          obstacle.userData.velocity = 0.1 + Math.random() * 0.5;
-
-          // Adjust obstacle based on model type
-          if (obstacleModel === 'Bike.glb') {
-            obstacle.rotation.y = Math.PI / 2;
-            obstacle.scale.set(0.6, 0.6, 0.6);
-            obstacle.position.y = 0.4;
-          } 
-
-          if (obstacleModel === 'Llm.glb') {
-            obstacle.rotation.y = Math.PI / 2;
-            obstacle.scale.set(0.6, 0.6, 0.6);
-            obstacle.position.y = 0.4;
-          } 
-
-          if (obstacleModel === 'Bus.glb') {
-            obstacle.scale.set(2, 2.2, 2.2);
-            obstacle.rotation.y = Math.PI;
-            obstacle.position.y = 0.4;
+    // === 8. Load taxi.glb as Obstacle ===
+    let taxiModel;
+    loaderGLTF.load(
+      'taxi.glb', // Ensure this path is correct
+      (gltf) => {
+        taxiModel = gltf.scene;
+        taxiModel.scale.set(0.5, 0.5, 0.5); // Scale down to (0.5, 0.5, 0.5)
+        taxiModel.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
           }
+        });
+        console.log("Obstacle model (taxi.glb) loaded successfully.");
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading obstacle model (taxi.glb):', error);
+      }
+    );
 
-          if (obstacleModel === 'Kmb.glb') {
-            obstacle.scale.set(4, 4.4, 4.4);
-            obstacle.rotation.y = Math.PI;
-            obstacle.position.y = 0.4;
-          }
+    // === 9. Obstacle Group and Control Variables ===
+    const obstacleGroup = new THREE.Group();
+    scene.add(obstacleGroup);
 
-          if (obstacleModel === 'TAXI.glb') {
-            obstacle.scale.set(0.2, 0.17, 0.2);
-            obstacle.rotation.y = Math.PI;
-            obstacle.position.y = 0.15;
-          }
+    const obstacleFrequency = 2; // Spawn obstacle every 2 seconds
+    let obstacleTimer = 0;
+    const obstacles = []; // Array to hold active obstacles
 
-          if (obstacleModel === 'LGV.glb') {
-            obstacle.scale.set(0.28, 0.28, 0.28);
-            obstacle.rotation.y = Math.PI;
-            obstacle.position.y = 0.15;
-          }
+    // === 10. Function to Spawn a New Obstacle (taxi.glb) ===
+    function spawnObstacle() {
+      if (!taxiModel || !userCarLoaded) return; // Ensure the model is loaded and car is ready
 
-          scene.add(obstacle);
-          obstacles.push(obstacle);
-        },
-        undefined,
-        (error) => console.error('Error loading obstacle:', error)
-      );
+      const obstacle = taxiModel.clone();
+      // Randomize speed between 80 km/h (22.222 m/s) and 160 km/h (44.444 m/s)
+      obstacle.userData.speed = Math.random() * (maxVelocity - minVelocity) + minVelocity;
+      obstacle.userData.hasAdjustedSpeed = false; // Flag to ensure speed adjustment happens once
+      obstacle.userData.spawnBehind = false; // Initialize the flag
+
+      // Rotate the obstacle to face the opposite direction
+      obstacle.rotation.y = Math.PI; // 180 degrees
+
+      // Randomly decide if the obstacle spawns ahead or behind within 50 meters
+      const spawnBehind = Math.random() < 0.5; // 50% chance to spawn behind
+      obstacle.userData.spawnBehind = spawnBehind; // Store the flag
+      const proximity = 50; // meters
+      let spawnZ;
+
+      if (spawnBehind) {
+        spawnZ = MTC.position.z + Math.random() * -proximity; // Behind the car
+      } else {
+        spawnZ = MTC.position.z + roadLength / 2 + 10 + Math.random() * 10; // Ahead of the car
+      }
+
+      const lane = lanes[Math.floor(Math.random() * lanes.length)];
+      const spawnY = 0.1; // Grounded on the road plane
+      obstacle.position.set(lane, spawnY, spawnZ);
+      obstacle.castShadow = true;
+      obstacle.receiveShadow = true;
+      environmentGroup.add(obstacle);
+      obstacles.push(obstacle);
+
+      console.log(`Spawned obstacle (taxi.glb) at lane ${lane}, z=${spawnZ.toFixed(2)}, speed=${(obstacle.userData.speed * 3.6).toFixed(0)} km/h, behind: ${spawnBehind}`);
     }
 
-    // Create Obstacles Every 1 Seconds
-    setInterval(createObstacle, 1500);
+    // === 11. Function to Update Obstacles ===
+    function updateObstacles(deltaTime) {
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obstacle = obstacles[i];
+        // Move obstacle forward based on its speed
+        obstacle.position.z -= obstacle.userData.speed * deltaTime;
 
-    // Joystick Elements
+        // Check if obstacle was spawned behind and hasn't adjusted speed yet
+        if (obstacle.userData.spawnBehind && !obstacle.userData.hasAdjustedSpeed) {
+          // If obstacle is still behind, increase its speed by 25%
+          if (obstacle.position.z > MTC.position.z) {
+            obstacle.userData.speed *= 1.25;
+            obstacle.userData.hasAdjustedSpeed = true;
+            console.log(`Obstacle at lane ${obstacle.position.x} now has increased speed: ${(obstacle.userData.speed * 3.6).toFixed(0)} km/h`);
+          }
+        }
+
+        // Remove obstacle if it passes the player
+        if (obstacle.position.z < MTC.position.z - roadLength / 2 - 10) {
+          obstacleGroup.remove(obstacle);
+          obstacles.splice(i, 1);
+        }
+      }
+    }
+
+    // === 12. Joystick Elements and Controls ===
     const joystickContainer = document.getElementById('joystick-container');
     const joystickBase = document.getElementById('joystick-base');
     const joystickKnob = document.getElementById('joystick-knob');
 
-    // Joystick Properties
-    const joystickMaxDistance = joystickBase.offsetWidth / 2;
+    let joystickMaxDistance = joystickBase.offsetWidth / 2;
     let joystickActive = false;
     let joystickX = 0;
     let joystickY = 0;
 
-    // Control Flags
     let accelerateInput = false;
     let decelerateInput = false;
 
@@ -403,6 +750,11 @@
     joystickBase.addEventListener('touchstart', startJoystick, { passive: false });
     joystickBase.addEventListener('touchmove', moveJoystick, { passive: false });
     joystickBase.addEventListener('touchend', endJoystick, { passive: false });
+
+    // Mouse Event Handlers for Joystick
+    joystickBase.addEventListener('mousedown', startJoystickMouse, { passive: false });
+    document.addEventListener('mousemove', moveJoystickMouse, { passive: false });
+    document.addEventListener('mouseup', endJoystickMouse, { passive: false });
 
     function startJoystick(e) {
       e.preventDefault();
@@ -429,6 +781,42 @@
         joystickKnob.style.transition = 'transform 0.1s ease'; // Reset transition
         joystickX = 0;
         joystickY = 0;
+        joystickStrength = 0;
+      }, 300);
+      // Reset control flags
+      accelerateInput = false;
+      decelerateInput = false;
+      moveLeft = false;
+      moveRight = false;
+    }
+
+    // Mouse versions
+    function startJoystickMouse(e) {
+      e.preventDefault();
+      joystickActive = true;
+      joystickKnob.classList.add('active');
+      updateJoystick(e);
+    }
+
+    function moveJoystickMouse(e) {
+      if (!joystickActive) return;
+      e.preventDefault();
+      updateJoystick(e);
+    }
+
+    function endJoystickMouse(e) {
+      if (!joystickActive) return;
+      e.preventDefault();
+      joystickActive = false;
+      joystickKnob.classList.remove('active');
+      // Reset knob to center with smooth transition
+      joystickKnob.style.transition = 'transform 0.3s ease';
+      joystickKnob.style.transform = `translate(0px, 0px)`;
+      setTimeout(() => {
+        joystickKnob.style.transition = 'transform 0.1s ease'; // Reset transition
+        joystickX = 0;
+        joystickY = 0;
+        joystickStrength = 0;
       }, 300);
       // Reset control flags
       accelerateInput = false;
@@ -438,10 +826,19 @@
     }
 
     function updateJoystick(e) {
-      const touch = e.touches[0];
-      const rect = joystickBase.getBoundingClientRect();
-      const touchX = touch.clientX - rect.left - rect.width / 2;
-      const touchY = touch.clientY - rect.top - rect.height / 2;
+      let touchX, touchY;
+
+      if (e.touches) {
+        const touch = e.touches[0];
+        const rect = joystickBase.getBoundingClientRect();
+        touchX = touch.clientX - rect.left - rect.width / 2;
+        touchY = touch.clientY - rect.top - rect.height / 2;
+      } else {
+        // Mouse event
+        const rect = joystickBase.getBoundingClientRect();
+        touchX = e.clientX - rect.left - rect.width / 2;
+        touchY = e.clientY - rect.top - rect.height / 2;
+      }
 
       // Calculate distance from center
       const distance = Math.min(Math.sqrt(touchX * touchX + touchY * touchY), joystickMaxDistance);
@@ -455,6 +852,9 @@
       const knobX = (joystickX * joystickMaxDistance * 0.6); // 0.6 to limit knob movement within base
       const knobY = (joystickY * joystickMaxDistance * 0.6);
       joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+      // Calculate strength as the magnitude of the joystick input
+      joystickStrength = Math.sqrt(joystickX * joystickX + joystickY * joystickY);
 
       // Update game controls based on joystick position
       updateGameControls(joystickX, joystickY);
@@ -491,16 +891,17 @@
       }
     }
 
-    // Function to format time in minutes and seconds
+    // === 13. Function to Format Time ===
     function formatTime(seconds) {
       const mins = Math.floor(seconds / 60);
       const secs = Math.floor(seconds % 60);
-      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      const millis = Math.floor((seconds % 1) * 1000);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}.${millis}`;
     }
 
-    // Animate Function
+    // === 14. Animate Function ===
     function animate() {
-      if (gameOver) return;
+      if (gameOver || gameCompleted) return;
 
       animationId = requestAnimationFrame(animate);
 
@@ -514,50 +915,65 @@
 
       // Handle acceleration and deceleration
       if (accelerateInput) {
-        velocity = Math.min(velocity + accelerationRate * deltaTime, maxVelocity);
-        adjustCamera('accelerate');
+        velocity = Math.min(velocity + accelerationRate * deltaTime * joystickStrength, maxVelocity);
+        adjustCamera('accelerate', joystickStrength);
       } else if (decelerateInput) {
-        velocity = Math.max(velocity - decelerationRate * deltaTime, baseVelocity);
-        adjustCamera('decelerate');
+        velocity = Math.max(velocity - decelerationRate * deltaTime * joystickStrength, minVelocity);
+        adjustCamera('decelerate', joystickStrength);
       } else {
         // Smoothly return to base velocity if not at base
         if (velocity > baseVelocity) {
           velocity = Math.max(velocity - decelerationRate * deltaTime, baseVelocity);
-          adjustCamera('decelerate');
+          adjustCamera('decelerate', joystickStrength);
         } else if (velocity < baseVelocity) {
           velocity = Math.min(velocity + accelerationRate * deltaTime, baseVelocity);
-          adjustCamera('accelerate');
+          adjustCamera('accelerate', joystickStrength);
         } else {
           resetCamera();
         }
       }
 
+      // Update speedometer
+      const speedKmH = (velocity * 3.6).toFixed(0); // Convert m/s to km/h
+      document.getElementById("speedometer").textContent = `${speedKmH} km/h`; // Illuminated via CSS
+
       // Update distance based on velocity and deltaTime
-      distance += velocity * deltaTime * 2; // Multiplied by 2 as per requirement
+      distance += velocity * deltaTime; // Distance in meters
       document.getElementById("distance").textContent = `Distance: ${distance.toFixed(1)} m`;
 
-      // Handle turning with rotation limits and translate on X-axis
-      if (moveLeft) {
-        // Rotate left with limit
-        if (MTC.rotation.y < Math.PI / 8) { // 22.5 degrees for slight rotation
-          MTC.rotation.y += 0.05;
-        }
-        // Translate left
-        MTC.position.x -= 0.05; // Adjust translation speed as needed
+      // Check for game completion
+      if (distance >= 1000) { // Changed from 1500 to 1000 meters
+        gameCompleted = true;
+        handleGameCompletion();
+        return;
+      }
 
-        // Adjust camera rotation
-        currentCameraRotationY = THREE.MathUtils.lerp(currentCameraRotationY, 0.05, 0.1); // Slight rotation left
+      // Handle turning with rotation limits and translate on X-axis based on joystick direction and strength
+      if (moveLeft && decelerateInput) { // Only rotate during deceleration
+        // Rotate counter clockwise on the Y-axis
+        if (MTC.rotation.y > -THREE.MathUtils.degToRad(22.5)) { // -22.5 degrees for slight rotation
+          MTC.rotation.y -= THREE.MathUtils.degToRad(2.5 * joystickStrength); // Rotate proportionally (counterclockwise)
+        }
+      }
+      if (moveRight && decelerateInput) { // Only rotate during deceleration
+        // Rotate clockwise on the Y-axis
+        if (MTC.rotation.y < THREE.MathUtils.degToRad(22.5)) { // 22.5 degrees for slight rotation
+          MTC.rotation.y += THREE.MathUtils.degToRad(2.5 * joystickStrength); // Rotate proportionally (clockwise)
+        }
+      }
+
+      // Translate left and right regardless of deceleration
+      if (moveLeft) {
+        // Translate left
+        MTC.position.x -= 0.05 * joystickStrength; // Adjust translation speed as needed based on strength
+        // Adjust camera rotation based on joystick strength
+        currentCameraRotationY = THREE.MathUtils.lerp(currentCameraRotationY, 0.05 * joystickStrength, 0.1); // Slight rotation left
       }
       if (moveRight) {
-        // Rotate right with limit
-        if (MTC.rotation.y > -Math.PI / 8) { // -22.5 degrees for slight rotation
-          MTC.rotation.y -= 0.05;
-        }
         // Translate right
-        MTC.position.x += 0.05; // Adjust translation speed as needed
-
-        // Adjust camera rotation
-        currentCameraRotationY = THREE.MathUtils.lerp(currentCameraRotationY, -0.05, 0.1); // Slight rotation right
+        MTC.position.x += 0.05 * joystickStrength; // Adjust translation speed as needed based on strength
+        // Adjust camera rotation based on joystick strength
+        currentCameraRotationY = THREE.MathUtils.lerp(currentCameraRotationY, -0.05 * joystickStrength, 0.1); // Slight rotation right
       }
 
       // Smoothly rotate back to 0 if not turning
@@ -570,7 +986,7 @@
       camera.rotation.y = currentCameraRotationY;
 
       // Clamp rotation.y to ±22.5 degrees
-      MTC.rotation.y = THREE.MathUtils.clamp(MTC.rotation.y, -Math.PI / 8, Math.PI / 8);
+      MTC.rotation.y = THREE.MathUtils.clamp(MTC.rotation.y, -THREE.MathUtils.degToRad(22.5), THREE.MathUtils.degToRad(22.5));
 
       // Update the car's position based on velocity and deltaTime
       if (MTC) {
@@ -586,9 +1002,6 @@
         MTC.rotation.z *= 0.9; // Smoothly return to upright position
       }
 
-      // Boundary checks to prevent the car from moving out of lanes
-      MTC.position.x = Math.max(-4, Math.min(4, MTC.position.x));
-
       // Update camera position to follow the car
       updateCamera();
 
@@ -596,42 +1009,32 @@
       const markerSpeed = velocity; // Markers move based on car's speed
       markers.forEach((marker) => {
         marker.position.z += markerSpeed * deltaTime;
-        if (marker.position.z > 5) marker.position.z = -500; // Reset to start for infinite loop
+        if (marker.position.z > roadLength / 2) marker.position.z = -roadLength / 2;
       });
 
       // Update obstacles
-      obstacles.forEach((obstacle, index) => {
-        obstacle.position.z += obstacle.userData.velocity * deltaTime; // Move obstacle based on its own velocity
+      updateObstacles(deltaTime);
 
-        if (obstacle.position.z > 5) {
-          obstacles.splice(index, 1);
-          scene.remove(obstacle);
-          score++;
-          updateScoreUI();
-          updateHighScore();
-        }
+      // Spawn new obstacles based on frequency
+      obstacleTimer += deltaTime;
+      if (obstacleTimer >= obstacleFrequency) {
+        spawnObstacle();
+        obstacleTimer = 0;
+      }
 
-        // Collision detection using bounding boxes for better accuracy
-        const carBox = new THREE.Box3().setFromObject(MTC);
-        const obstacleBox = new THREE.Box3().setFromObject(obstacle);
-        if (carBox.intersectsBox(obstacleBox)) {
-          // Trigger GameOver camera animation
-          gameOver = true;
-          performGameOverCameraAnimation(obstacle);
-          // Stop the animation loop after the animation completes
-        }
-      });
+      // Check for collisions
+      checkCollisions();
 
       renderer.render(scene, camera);
     }
 
-    // Update Camera Position to Follow the Car
+    // === 15. Update Camera Position to Follow the Car ===
     function updateCamera() {
       // Calculate camera's desired position based on car's position and current camera offset
       const desiredCameraPosition = new THREE.Vector3(
         MTC.position.x,
-        MTC.position.y + 2, // y offset
-        MTC.position.z + 8 // z offset
+        MTC.position.y + 5, // y offset
+        MTC.position.z + 15 // z offset
       );
 
       // Move camera towards desired position
@@ -641,11 +1044,11 @@
       camera.lookAt(MTC.position);
     }
 
-    // Adjust Camera Based on Acceleration or Deceleration
-    function adjustCamera(action) {
-      // Define offsets for inertia visual effects
-      const accelerateOffset = new THREE.Vector3(0, 2.2, 8.5); // Slightly higher and further back
-      const decelerateOffset = new THREE.Vector3(0, 1.8, 7.5); // Slightly lower and closer
+    // === 16. Adjust Camera Based on Acceleration or Deceleration ===
+    function adjustCamera(action, strength) {
+      // Define base offsets for inertia visual effects
+      const accelerateOffset = new THREE.Vector3(0, 5.2, 15.5); // Slightly higher and further back
+      const decelerateOffset = new THREE.Vector3(0, 5, 12); // Closer by 20%
 
       if (action === 'accelerate') {
         const desiredOffset = accelerateOffset;
@@ -664,9 +1067,24 @@
         );
         camera.position.lerp(desiredCameraPosition, 0.05); // Smooth transition
       }
+
+      // Additional emphasis based on joystick input strength
+      if (strength > 0.5) {
+        // High strength: more camera movement and dynamic FOV
+        if (action === 'accelerate') {
+          camera.position.y += 0.2;
+          camera.position.z += 0.5;
+          camera.fov = THREE.MathUtils.lerp(camera.fov, 75, 0.05); // Narrower FOV
+        } else if (action === 'decelerate') {
+          camera.position.y -= 0.2;
+          camera.position.z -= 0.5;
+          camera.fov = THREE.MathUtils.lerp(camera.fov, 85, 0.05); // Wider FOV
+        }
+        camera.updateProjectionMatrix();
+      }
     }
 
-    // Reset Camera to Default Position
+    // === 17. Reset Camera to Default Position ===
     function resetCamera() {
       const desiredCameraPosition = new THREE.Vector3(
         MTC.position.x + defaultCameraOffset.x,
@@ -674,154 +1092,368 @@
         MTC.position.z + defaultCameraOffset.z
       );
       camera.position.lerp(desiredCameraPosition, 0.05); // Smooth transition back
+      camera.fov = THREE.MathUtils.lerp(camera.fov, 75, 0.05); // Reset FOV to default
       camera.lookAt(MTC.position);
+      camera.updateProjectionMatrix();
     }
 
-    // Perform GameOver Camera Animation: Orbit around collision point
-    function performGameOverCameraAnimation(obstacle) {
-      if (isOrbiting) return; // Prevent multiple triggers
-      isOrbiting = true;
+    // === 18. Collision Detection with Obstacles and Barriers ===
+    function checkCollisions() {
+      const carBox = new THREE.Box3().setFromObject(MTC);
+      // Check collisions with obstacles
+      for (let obstacle of obstacles) {
+        const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+        if (carBox.intersectsBox(obstacleBox)) {
+          // Increment collision count
+          collisionCount += 1;
+          console.log(`Collision detected! Total collisions: ${collisionCount}`);
 
-      // Freeze the frame
-      cancelAnimationFrame(animationId);
+          if (collisionCount < 3) {
+            // Display or update warning indicator
+            displayWarningIndicator();
+          } else {
+            // Trigger GameOver
+            gameOver = true;
+            handleGameOver();
+          }
 
-      // Determine collision point
-      const carPosition = new THREE.Vector3();
-      MTC.getWorldPosition(carPosition);
-      const obstaclePosition = new THREE.Vector3();
-      obstacle.getWorldPosition(obstaclePosition);
-      const collisionPoint = new THREE.Vector3().addVectors(carPosition, obstaclePosition).multiplyScalar(0.5);
+          // Remove the obstacle to prevent multiple collisions with the same obstacle
+          obstacleGroup.remove(obstacle);
+          const index = obstacles.indexOf(obstacle);
+          if (index > -1) {
+            obstacles.splice(index, 1);
+          }
 
-      // Define the orbit path: a circle around the collision point
-      const orbitRadius = 10; // Adjust as needed
-      const orbitDuration = 2000; // 2 seconds in milliseconds
-      const startTimeAnimation = Date.now();
-
-      function orbit() {
-        const currentTime = Date.now();
-        const elapsed = currentTime - startTimeAnimation;
-        const progress = Math.min(elapsed / orbitDuration, 1); // Progress between 0 and 1
-
-        // Calculate angle based on progress
-        const angle = progress * 2 * Math.PI; // Complete a full orbit
-
-        // Calculate new camera position on the orbit
-        const newX = collisionPoint.x + orbitRadius * Math.cos(angle);
-        const newZ = collisionPoint.z + orbitRadius * Math.sin(angle);
-        const newY = collisionPoint.y + 5; // Slightly above
-
-        camera.position.set(newX, newY, newZ);
-
-        // Make the camera look at the collision point
-        camera.lookAt(collisionPoint);
-
-        if (progress < 1) {
-          requestAnimationFrame(orbit);
-        } else {
-          // After orbit, display game over screen
-          document.getElementById("finalScore").textContent = score.toFixed(1);
-          document.getElementById("gameOver").style.display = "block";
+          break; // Exit loop after handling collision
         }
       }
+      // Check collisions with barriers
+      if (!gameOver) { // Only check barriers if game is not already over
+        for (let barrier of barriers) {
+          const barrierBox = new THREE.Box3().setFromObject(barrier);
+          if (carBox.intersectsBox(barrierBox)) {
+            // Increment collision count
+            collisionCount += 1;
+            console.log(`Collision with barrier! Total collisions: ${collisionCount}`);
 
-      orbit(); // Start the orbit animation
-    }
+            if (collisionCount < 3) {
+              // Display or update warning indicator
+              displayWarningIndicator();
+            } else {
+              // Trigger GameOver
+              gameOver = true;
+              handleGameOver();
+            }
 
-    // Start Game on Continue Button Click
-    document.getElementById("continueButton").addEventListener("click", () => {
-      document.getElementById("continueButton").style.display = "none";
-      startTime = Date.now(); // Initialize start time
-      previousTime = Date.now(); // Initialize previousTime
-      animate();
-    });
-
-    // Keyboard Controls for Desktop (Arrow Keys)
-    window.addEventListener("keydown", (e) => {
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
-        e.preventDefault(); // Prevent default actions like scrolling
-      }
-      if (e.key === "ArrowLeft") moveLeft = true;
-      if (e.key === "ArrowRight") moveRight = true;
-      if (e.key === "ArrowUp") accelerateInput = true;
-      if (e.key === "ArrowDown") decelerateInput = true;
-    });
-
-    window.addEventListener("keyup", (e) => {
-      if (e.key === "ArrowLeft") moveLeft = false;
-      if (e.key === "ArrowRight") moveRight = false;
-      if (e.key === "ArrowUp") accelerateInput = false;
-      if (e.key === "ArrowDown") decelerateInput = false;
-    });
-
-    // Update Score UI
-    function updateScoreUI() {
-      // New scoring formula: distance multiplied by a factor (e.g., 10)
-      const calculatedScore = distance * 10;
-      document.getElementById("score").textContent = `Score: ${calculatedScore.toFixed(1)}`;
-    }
-
-    // Update High Score
-    function updateHighScore() {
-      const calculatedScore = distance * 10;
-      if (calculatedScore > highScore) {
-        highScore = calculatedScore.toFixed(1);
-        localStorage.setItem('highScore', highScore);
-        document.getElementById("highScore").textContent = `High Score: ${highScore}`;
+            break; // Exit loop after handling collision
+          }
+        }
       }
     }
 
-    // Game Over Function (Optional, if you want to call it elsewhere)
-    function endGame() {
-      gameOver = true;
-      document.getElementById("finalScore").textContent = (distance * 10).toFixed(1);
-      document.getElementById("gameOver").style.display = "block";
+    // === 19. Handle Game Over ===
+    function handleGameOver() {
+      // Stop the animation loop
       cancelAnimationFrame(animationId);
+      // Display Game Over container
+      document.getElementById("finalTime").textContent = formatTime(elapsedTime);
+      document.getElementById("gameOver").style.display = "block";
+      // Hide speedometer and warning indicator
+      document.getElementById("speedometer").style.display = "none";
+      document.getElementById("warningIndicator").style.display = "none";
     }
 
-    // Restart Button Functionality
+    // === 20. Handle Game Completion ===
+    function handleGameCompletion() {
+      cancelAnimationFrame(animationId);
+      document.getElementById("completionTime").textContent = formatTime(elapsedTime);
+      updateLeaderboard();
+      document.getElementById("gameComplete").style.display = "block";
+      // Hide speedometer and warning indicator
+      document.getElementById("speedometer").style.display = "none";
+      document.getElementById("warningIndicator").style.display = "none";
+    }
+
+    // === 21. Update Leaderboard ===
+    function updateLeaderboard() {
+      // Check if current time is better than any on the leaderboard
+      let position = null;
+      for (let i = 0; i < leaderboard.length; i++) {
+        if (elapsedTime < leaderboard[i].time) {
+          position = i;
+          break;
+        }
+      }
+      if (leaderboard.length < 10 && position === null) {
+        position = leaderboard.length;
+      }
+      if (position !== null) {
+        // Prompt for name entry
+        document.getElementById("nameInputContainer").style.display = "block";
+        const submitButton = document.getElementById("submitNameButton");
+        // Remove any existing event listeners to prevent multiple submissions
+        submitButton.replaceWith(submitButton.cloneNode(true));
+        document.getElementById("submitNameButton").addEventListener("click", () => {
+          const name = document.getElementById("nameInput").value.trim() || "Anonymous";
+          leaderboard.splice(position, 0, { name: name, time: elapsedTime });
+          if (leaderboard.length > 10) {
+            leaderboard.pop();
+          }
+          localStorage.setItem('leaderboard', JSON.stringify(leaderboard));
+          displayLeaderboard();
+          document.getElementById("nameInputContainer").style.display = "none";
+          document.getElementById("gameComplete").style.display = "none";
+        });
+      } else {
+        displayLeaderboard();
+      }
+      updateBestTimeDisplay();
+    }
+
+    // === 22. Display Leaderboard ===
+    function displayLeaderboard() {
+      const leaderboardList = document.getElementById("leaderboardList");
+      leaderboardList.innerHTML = '';
+      leaderboard.forEach((entry, index) => {
+        const listItem = document.createElement('li');
+        let medal = '';
+        if (index === 0) medal = '🥇'; // Gold
+        else if (index === 1) medal = '🥈'; // Silver
+        else if (index === 2) medal = '🥉'; // Bronze
+        else medal = `${index + 1}.`;
+        listItem.innerHTML = `<span>${medal} ${entry.name}</span><span>${formatTime(entry.time)}</span>`;
+        leaderboardList.appendChild(listItem);
+      });
+    }
+
+    // === 23. Start Game on Continue Button Click ===
+    document.getElementById("continueButton").addEventListener("click", () => {
+      document.getElementById("continueButton").style.display = "none"; // Hide the button after clicking
+      document.getElementById("instructions").style.display = "none"; // Hide instructions
+      startCameraAnimation(); // Start camera animation
+    });
+
+    // === 24. Remove Keyboard Controls Completely ===
+    // Previously handled by not adding keyboard event listeners
+
+    // === 25. Restart Button Functionality for Game Over ===
     document.getElementById("restartButton").addEventListener("click", () => {
+      resetGame();
+      document.getElementById("gameOver").style.display = "none";
+    });
+
+    // === 26. Continue Link in Game Over ===
+    document.getElementById("continueLink").addEventListener("click", () => {
+      window.location.href = "https://experience.arcgis.com/experience/5d53be978cbb4a4abf240ce7a714f8b2/";
+    });
+
+    // === 27. Restart Button Functionality for Game Complete ===
+    document.getElementById("restartButtonComplete").addEventListener("click", () => {
+      resetGame();
+      document.getElementById("gameComplete").style.display = "none";
+    });
+
+    // === 28. Continue Link in Game Complete ===
+    document.getElementById("continueLinkComplete").addEventListener("click", () => {
+      window.location.href = "https://experience.arcgis.com/experience/5d53be978cbb4a4abf240ce7a714f8b2/";
+    });
+
+    // === 29. Reset Game Function ===
+    function resetGame() {
       // Cancel any existing animation frame
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
 
       // Reset game state
-      score = 0;
       elapsedTime = 0;
       distance = 0;
+      collisionCount = 0;
       gameOver = false;
-      obstacles.forEach((obstacle) => scene.remove(obstacle)); // Remove all obstacles
-      obstacles = []; // Clear the obstacles array
+      gameCompleted = false;
+      // Remove all obstacles
+      obstacles.forEach((obstacle) => {
+        obstacleGroup.remove(obstacle);
+      });
+      obstacles.length = 0; // Clear the obstacles array
 
       if (MTC) {
-        MTC.position.set(0, 0.15, 4); // Reset the user's car position
+        MTC.position.set(0, 1.1, 0); // Reset the user's car position above the barrier
         MTC.rotation.y = 0; // Reset rotation
         MTC.rotation.z = 0; // Reset tilt
       }
 
-      // Reset camera rotation
+      // Reset camera rotation and FOV
       currentCameraRotationY = 0;
       camera.rotation.y = 0;
+      camera.fov = 75; // Reset FOV to default
+      camera.updateProjectionMatrix();
+
+      // Reset control flags
+      moveLeft = false;
+      moveRight = false;
+      accelerateInput = false;
+      decelerateInput = false;
+
+      // Reset velocity
+      velocity = baseVelocity;
 
       // Reset UI elements
-      document.getElementById("score").textContent = `Score: ${score}`;
-      document.getElementById("highScore").textContent = `High Score: ${highScore}`;
       document.getElementById("distance").textContent = `Distance: ${distance} m`;
       document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
-      document.getElementById("gameOver").style.display = "none";
+      document.getElementById("speedometer").textContent = `${(velocity * 3.6).toFixed(0)} km/h`;
+      updateBestTimeDisplay();
 
-      // Restart animation loop
+      // Hide warning indicator
+      document.getElementById("warningIndicator").style.display = "none";
+
       startTime = Date.now(); // Reinitialize start time
       previousTime = Date.now(); // Reset previousTime
-      animate();
-    });
 
-    // Handle Window Resize for Responsiveness
+      // Start the game again
+      animate();
+    }
+
+    // === 30. Handle Window Resize for Responsiveness ===
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    // === 31. Display Initial Leaderboard if Any ===
+    displayLeaderboard();
+
+    // === 32. Function to Setup Barriers After Car is Loaded ===
+    function setupBarriers() {
+      // Assuming user car's bounding box is already scaled to (2.2, 2.2, 2.2)
+      const carBox = new THREE.Box3().setFromObject(MTC);
+      const carHeight = carBox.max.y - carBox.min.y;
+      const carWidth = carBox.max.x - carBox.min.x;
+
+      const barrierHeight = carHeight; // Aligning Y-axis with user car
+      const barrierWidth = carWidth * 0.3; // 30% of user car's width
+      const barrierLength = roadLength; // Same length as the road
+
+      // Remove existing barriers if any
+      barriers.forEach(barrier => {
+        barrierGroup.remove(barrier);
+      });
+      barriers.length = 0;
+
+      const barrierGeometry = new THREE.BoxGeometry(barrierWidth, barrierHeight, barrierLength);
+      const barrierMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF }); // Changed color to white
+
+      // Left Barrier
+      const barrierLeft = new THREE.Mesh(barrierGeometry, barrierMaterial);
+      barrierLeft.position.set(-roadWidth / 2 - (barrierWidth / 2) - 0.5, barrierHeight / 2, 0);
+      barrierLeft.castShadow = true;
+      barrierLeft.receiveShadow = true;
+      barrierGroup.add(barrierLeft);
+      barriers.push(barrierLeft);
+
+      // Right Barrier
+      const barrierRight = new THREE.Mesh(barrierGeometry, barrierMaterial);
+      barrierRight.position.set(roadWidth / 2 + (barrierWidth / 2) + 0.5, barrierHeight / 2, 0);
+      barrierRight.castShadow = true;
+      barrierRight.receiveShadow = true;
+      barrierGroup.add(barrierRight);
+      barriers.push(barrierRight);
+
+      console.log("Barriers have been set up successfully.");
+    }
+
+    // === 33. Function to Start Camera Animation Before Game Begins ===
+    function startCameraAnimation() {
+      // Disable controls during animation
+      document.getElementById("continueButton").disabled = true;
+
+      // Define initial and final camera positions
+      const initialCameraPosition = new THREE.Vector3(0, 30, 100); // Higher altitude
+      const finalCameraPosition = new THREE.Vector3(
+        MTC.position.x + defaultCameraOffset.x,
+        MTC.position.y + defaultCameraOffset.y,
+        MTC.position.z + defaultCameraOffset.z
+      );
+
+      // Define the duration of the animation
+      const duration = 1500; // 1.5 seconds
+      const start = Date.now();
+
+      function animateCamera() {
+        const now = Date.now();
+        const elapsed = now - start;
+        const t = Math.min(elapsed / duration, 1); // Normalized time [0,1]
+
+        // Lerp camera position
+        camera.position.lerpVectors(initialCameraPosition, finalCameraPosition, t);
+        camera.lookAt(MTC.position);
+
+        if (t < 1) {
+          requestAnimationFrame(animateCamera);
+        } else {
+          // Start the game loop
+          startTime = Date.now(); // Initialize start time
+          previousTime = Date.now(); // Initialize previousTime
+          animate(); // Start the game loop
+        }
+      }
+
+      animateCamera();
+    }
+
+    // === 34. Additional Debugging: Log when the page loads ===
+    window.addEventListener('load', () => {
+      console.log("Page loaded successfully.");
+    });
+
+    // === 35. Final Touch: Prevent Keyboard Controls ===
+    // No event listeners for keyboard controls are added, ensuring joystick is the sole control method.
+
+    // === 36. Function to Display Warning Indicator ===
+    function displayWarningIndicator() {
+      const warningIndicator = document.getElementById("warningIndicator");
+      const warningExclamation = document.getElementById("warningExclamation");
+      const warningCircle = document.getElementById("warningCircle");
+
+      // If it's the first collision
+      if (collisionCount === 1) {
+        warningIndicator.style.display = "block";
+        warningIndicator.classList.add('flashing');
+      }
+      // If it's the second collision
+      else if (collisionCount === 2) {
+        // Increase flash frequency by reducing animation duration
+        warningIndicator.classList.remove('flashing');
+        warningIndicator.style.animation = 'flash 0.5s infinite'; // Faster flashing
+      }
+    }
+
+    // === 37. Function to Attach Illuminating Sphere to Obstacles (Removed for User Car) ===
+    // Since the user requested to remove the sphere from the user car, we ensure it's only attached to obstacles.
+
+    // Attach illuminating sphere only to obstacles
+    function attachIlluminatingSphere(object) {
+      // Avoid attaching to user car
+      if (object === MTC) return;
+
+      const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32);
+      const sphereMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.1,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const illuminatingSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      // Scale the sphere to 0.1% of the object's scale
+      illuminatingSphere.scale.setScalar(0.0022); // 0.1% of 2.2
+      // Position it at the far positive end of the z-axis
+      illuminatingSphere.position.set(0, 0, 1.5); // 1.5 meters forward
+      // Attach to the object
+      object.add(illuminatingSphere);
+    }
+
   </script>
 </body>
 </html>
