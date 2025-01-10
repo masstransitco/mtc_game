@@ -1,0 +1,17 @@
+{
+  "name": "mtc-mini-game",
+  "version": "1.0.0",
+  "description": "An enhanced Three.js mini-game for short app loading or 404 pages",
+  "scripts": {
+    "start": "npx http-server ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.152.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
