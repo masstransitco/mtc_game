@@ -92,7 +92,7 @@ function onWindowResize() {
 
 // ============== LOAD MODELS (User Car, Obstacle) ==============
 function loadModels() {
-  const loader = new GLTFLoader();
+  const loader = new THREE.GLTFLoader();
 
   // 1) User Car
   loader.load(
