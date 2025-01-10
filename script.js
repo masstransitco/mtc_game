@@ -105,6 +105,7 @@ function loadModels() {
       MTC.receiveShadow = true;
       environmentGroup.add(MTC);
       userCarLoaded = true;
+      console.log("GLB Loaded", gltf);
     },
     undefined,
     (err) => {
