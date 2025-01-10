@@ -6,25 +6,11 @@
       name="viewport"
       content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
     />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
     <title>MTC Mini Game</title>
-
-    <!-- Link to CSS -->
     <link rel="stylesheet" href="./style.css" />
-
-    <!-- If installing via NPM and bundling, you'd import via a bundler. 
-         For a quick test, we can use the Three.js CDN in script.js 
-         or simply include a CDN script here. 
-         In the final version, remove the comment if you want:
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/loaders/GLTFLoader.js"></script>
-    -->
   </head>
-
   <body>
-    <!-- START SCREEN (Dark Themed) -->
+    <!-- START SCREEN -->
     <div id="start-screen">
       <div id="start-overlay">
         <h1>MTC MINI GAME</h1>
@@ -32,69 +18,51 @@
       </div>
     </div>
 
-    <!-- MAIN GAME UI CONTAINERS -->
-    <!-- 1) Speedometer -->
+    <!-- GAME UI (Same as your existing HTML structure) -->
     <div id="speedometer">-- km/h</div>
-
-    <!-- 2) Warning Indicator (Hidden by default) -->
     <div id="warningIndicator">
       <div id="warningCircle">
         <div id="warningExclamation">!</div>
       </div>
     </div>
-
-    <!-- 3) Best Time, Distance, Current Time -->
     <div id="ui-container">
       <div id="bestTime">Best Time: N/A</div>
       <div id="distance">Distance: 0 m</div>
       <div id="time">Time: 0 s</div>
       <div id="score">Score: 0</div>
     </div>
-
-    <!-- 4) Game Over Screen -->
     <div id="gameOver">
       <h1>Game Over</h1>
       <p>Driving Time: <span id="finalTime">0</span></p>
       <button id="restartButton">Play Again</button>
       <button id="continueLink">Continue →</button>
     </div>
-
-    <!-- 5) Game Complete Screen -->
     <div id="gameComplete">
       <h1>Trip Completed</h1>
       <p>Your Time: <span id="completionTime">0</span></p>
-      <!-- Leaderboard -->
       <div id="leaderboard">
         <h2>Leaderboard</h2>
         <ul id="leaderboardList"></ul>
       </div>
-      <!-- Name Input -->
       <div id="nameInputContainer" style="display: none;">
         <p>Enter your name:</p>
         <input type="text" id="nameInput" maxlength="10" />
         <button id="submitNameButton">↑</button>
       </div>
-
       <button id="restartButtonComplete">Play Again</button>
       <button id="continueLinkComplete">Continue →</button>
     </div>
-
-    <!-- 6) Joystick Container -->
     <div id="joystick-container">
       <div id="joystick-base">
         <div id="joystick-knob"></div>
       </div>
     </div>
-
-    <!-- 7) Instructions Container -->
     <div id="instructions">
       <p>Use joystick to accelerate, decelerate, and steer.</p>
       <p>Avoid collisions!</p>
     </div>
 
-    <!-- The main Three.js canvas is appended by script.js -->
-
-    <!-- Our main script -->
+    <!-- MAIN SCRIPT (ES module) -->
     <script type="module" src="./script.js"></script>
   </body>
 </html>
