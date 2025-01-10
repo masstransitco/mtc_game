@@ -1,68 +1,64 @@
 /*********************************************************************
  * script.js
  * 
- * Enhanced Three.js mini-game (Hong Kong-inspired environment),
- * with added obstacles (Bus, LGV, Bike), neon signs, lampposts,
- * traffic lights, basic camera orbit on Game Over/Completion,
- * extended distance (2000m), and a restyled leaderboard.
+ * Three.js Mini-Game with:
+ *  - 3 lanes ([-2, 0, 2]) with flat lane markings
+ *  - Road plane + side barriers
+ *  - Lampposts, traffic lights with poles
+ *  - Car (mtc.glb) + obstacle vehicles (taxi, Bus, LGV, Bike)
+ *  - Collision detection
+ *  - Leaderboard, camera orbit on game completion (2,000m).
+ *  - Fixes for the issues reported: fewer lanes, correct lane lines,
+ *    visible environment, obstacle spawning, scoreboard, and final orbit.
  *********************************************************************/
 
-// ================== GLOBAL STATE & VARIABLES ==================
+// ================== GLOBALS ==================
 let scene, camera, renderer;
 let environmentGroup;
-let MTC; // The user’s car
+let MTC; // user car
 let userCarLoaded = false;
 
-// We’ll store all obstacle models (taxi, bus, lgv, bike) in a dictionary
-let obstacleModels = {};
-let obstacleTypes = ["taxi", "bus", "lgv", "bike"];
-let obstacles = [];
+let obstacleModels = {}; // { taxi, bus, lgv, bike }
 let obstaclePool = [];
-const maxObstacles = 12; // Increase slightly for more variety
+let obstacles = [];
+const obstacleTypes = ["taxi", "bus", "lgv", "bike"];
+const maxObstacles = 10;
 
-// 5-lane positions by default, but you can reduce or expand
-let lanePositions = [-4, -2, 0, 2, 4];
+let lanePositions = [-2, 0, 2]; // Only 3 lanes
+let accelerateInput = false,
+  decelerateInput = false,
+  moveLeft = false,
+  moveRight = false;
 
-// Basic velocity & game metrics
-const baseVelocity = 6.944;  // ~25 km/h
-const minVelocity = 0.278;   // ~1 km/h
-const maxVelocity = 44.444;  // ~160 km/h
-let velocity = baseVelocity;
+let velocity = 6.944; // ~25 km/h
+const baseVelocity = 6.944;
+const minVelocity = 0.278;
+const maxVelocity = 44.444;
 
-let accelerateInput = false;
-let decelerateInput = false;
-let moveLeft = false;
-let moveRight = false;
-
+let collisionCount = 0;
 let gameOver = false;
 let gameCompleted = false;
-let collisionCount = 0;
 
-let distance = 0;      // meters
-let elapsedTime = 0;   // seconds
-let startTime = 0;     // ms
-let previousTime = 0;  // ms
+let distance = 0; // meters
+let scoreboard = 0; // 1 point per meter
+let totalCollisions = 0; // track collisions
+let elapsedTime = 0; // in seconds
+let startTime = 0; // ms
+let previousTime = 0; // ms
 let animationId;
 
-let scoreboard = 0;    // 1 point per meter
-let totalCollisions = 0; // track collisions
-
-// Leaderboard stored in localStorage
-let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
-
-// Obstacle spawn logic
-let obstacleFrequency = 2; // every 2 seconds
+let obstacleFrequency = 2; // spawn obstacle every 2s
 let obstacleTimer = 0;
-let difficultyRamp = 0; // speeds up obstacles over time
+let difficultyRamp = 0;
+const completionDistance = 2000; // 2,000m for game completion
 
-// Extended distance for completion
-const completionDistance = 2000; // from 1000m to 2000m
-
-// For camera orbit at end
 let orbitActive = false;
 let orbitStartTime = 0;
 
-// ================== SETUP SCENE, CAMERA, RENDERER ==================
+// Leaderboard
+let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
+
+// ================== SCENE SETUP ==================
 function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1C262D);
@@ -83,19 +79,14 @@ function initScene() {
   environmentGroup = new THREE.Group();
   scene.add(environmentGroup);
 
-  // Basic lighting (stronger for a city vibe)
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+  // Lights
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
   scene.add(ambientLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(10, 30, 10);
+  dirLight.position.set(10, 20, 10);
   dirLight.castShadow = true;
   scene.add(dirLight);
-
-  // Extra point light for "neon" effect
-  const neonLight = new THREE.PointLight(0xff00ff, 0.3, 200);
-  neonLight.position.set(0, 10, -50);
-  scene.add(neonLight);
 
   window.addEventListener("resize", onWindowResize, false);
 }
@@ -106,11 +97,11 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// ================== LOAD MODELS (User Car & Obstacles) ==================
+// ================== LOAD MODELS ==================
 function loadModels() {
   const loader = new THREE.GLTFLoader();
 
-  // 1) User Car (MTC)
+  // 1) User Car
   loader.load(
     "mtc.glb",
     (gltf) => {
@@ -121,64 +112,40 @@ function loadModels() {
       MTC.receiveShadow = true;
       environmentGroup.add(MTC);
       userCarLoaded = true;
-      console.log("MTC Car loaded.");
+      console.log("User car loaded (mtc.glb).");
     },
     undefined,
-    (err) => {
-      console.error("Error loading mtc.glb:", err);
-    }
+    (err) => console.error("Error loading mtc.glb:", err)
   );
 
-  // 2) Taxi
-  loader.load(
-    "taxi.glb",
-    (gltf) => {
-      obstacleModels.taxi = gltf.scene;
-      console.log("Taxi loaded.");
-    },
-    undefined,
-    (err) => console.error("Error loading taxi.glb:", err)
-  );
-
-  // 3) Bus
-  loader.load(
-    "Bus.glb",
-    (gltf) => {
-      obstacleModels.bus = gltf.scene;
-      console.log("Bus loaded.");
-    },
-    undefined,
-    (err) => console.error("Error loading Bus.glb:", err)
-  );
-
-  // 4) LGV
-  loader.load(
-    "LGV.glb",
-    (gltf) => {
-      obstacleModels.lgv = gltf.scene;
-      console.log("LGV loaded.");
-    },
-    undefined,
-    (err) => console.error("Error loading LGV.glb:", err)
-  );
-
-  // 5) Bike
-  loader.load(
-    "Bike.glb",
-    (gltf) => {
-      obstacleModels.bike = gltf.scene;
-      console.log("Bike loaded.");
-    },
-    undefined,
-    (err) => console.error("Error loading Bike.glb:", err)
-  );
+  // 2) Obstacles
+  // Taxi
+  loader.load("taxi.glb", (gltf) => {
+    obstacleModels.taxi = gltf.scene;
+    console.log("Taxi loaded.");
+  });
+  // Bus
+  loader.load("Bus.glb", (gltf) => {
+    obstacleModels.bus = gltf.scene;
+    console.log("Bus loaded.");
+  });
+  // LGV
+  loader.load("LGV.glb", (gltf) => {
+    obstacleModels.lgv = gltf.scene;
+    console.log("LGV loaded.");
+  });
+  // Bike
+  loader.load("Bike.glb", (gltf) => {
+    obstacleModels.bike = gltf.scene;
+    console.log("Bike loaded.");
+  });
 }
 
-// ================== ENVIRONMENT (Road, Buildings, etc.) ==================
+// ================== ENVIRONMENT ==================
 function setupEnvironment() {
-  // Road
-  const roadWidth = 12;
-  const roadLength = 4000; // bigger for city vibe
+  // Road plane
+  const roadWidth = 6; // narrower for 3 lanes
+  const roadLength = 4000;
   const roadGeom = new THREE.PlaneGeometry(roadWidth, roadLength);
   const roadMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
   const road = new THREE.Mesh(roadGeom, roadMat);
@@ -186,108 +153,96 @@ function setupEnvironment() {
   road.receiveShadow = true;
   environmentGroup.add(road);
 
-  // Lane Markers
-  const markerSpacing = 15;
-  const markerLength = 1;
-  for (let z = -roadLength / 2; z < roadLength / 2; z += markerSpacing) {
+  // Lane Markings (flat)
+  const spacing = 10;
+  const lineLength = 1;
+  for (let z = -roadLength / 2; z < roadLength / 2; z += spacing) {
     lanePositions.forEach((laneX) => {
-      const markerGeom = new THREE.BoxGeometry(0.1, 0.01, markerLength);
-      const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const markerGeom = new THREE.PlaneGeometry(0.08, lineLength);
+      const markerMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+      });
       const marker = new THREE.Mesh(markerGeom, markerMat);
+      marker.rotation.x = -Math.PI / 2; // lie flat
       marker.position.set(laneX, 0.01, z);
-      marker.rotation.x = -Math.PI / 2;
       environmentGroup.add(marker);
     });
   }
 
-  // Basic "Hong Kong" building placeholders on either side
-  // We'll create random boxes with neon textures or emissive materials
-  const buildingCount = 20;
-  for (let i = 0; i < buildingCount; i++) {
-    // random x offset: left side or right side
-    const leftSide = Math.random() < 0.5;
-    const baseX = leftSide ? -roadWidth * 1.5 : roadWidth * 1.5;
+  // Side Barriers
+  const barrierHeight = 1.2;
+  const barrierThickness = 0.2;
+  const barrierGeom = new THREE.BoxGeometry(barrierThickness, barrierHeight, roadLength);
+  const barrierMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 
-    // random z along the road length
-    const randomZ = THREE.MathUtils.randFloat(-roadLength / 2, roadLength / 2);
+  // Left barrier
+  const barrierLeft = new THREE.Mesh(barrierGeom, barrierMat);
+  barrierLeft.position.set(-roadWidth / 2 - barrierThickness / 2, barrierHeight / 2, 0);
+  barrierLeft.castShadow = true;
+  barrierLeft.receiveShadow = true;
+  environmentGroup.add(barrierLeft);
 
-    const bWidth = THREE.MathUtils.randFloat(2, 4);
-    const bHeight = THREE.MathUtils.randFloat(10, 20);
-    const bDepth = THREE.MathUtils.randFloat(2, 4);
+  // Right barrier
+  const barrierRight = new THREE.Mesh(barrierGeom, barrierMat);
+  barrierRight.position.set(roadWidth / 2 + barrierThickness / 2, barrierHeight / 2, 0);
+  barrierRight.castShadow = true;
+  barrierRight.receiveShadow = true;
+  environmentGroup.add(barrierRight);
 
-    const buildingGeom = new THREE.BoxGeometry(bWidth, bHeight, bDepth);
-    // Emissive or neon sign approach
-    const signColor = new THREE.Color(
-      "hsl(" + Math.floor(Math.random() * 360) + ", 100%, 50%)"
-    );
-    const buildingMat = new THREE.MeshStandardMaterial({
-      color: 0x222222,
-      emissive: signColor,
-      emissiveIntensity: 0.2,
-    });
-    const building = new THREE.Mesh(buildingGeom, buildingMat);
-    building.castShadow = true;
-    building.receiveShadow = true;
-    building.position.set(baseX, bHeight / 2, randomZ);
-    environmentGroup.add(building);
-  }
-
-  // Add lampposts along the edges
-  const lamppostSpacing = 30;
-  for (let z = -roadLength / 2; z < roadLength / 2; z += lamppostSpacing) {
-    // One lamppost on left, one on right
+  // Let's add lampposts every 50 meters
+  for (let z = -roadLength / 2; z < roadLength / 2; z += 50) {
     createLamppost(-roadWidth / 2 - 1, z);
     createLamppost(roadWidth / 2 + 1, z);
   }
 
-  // Add traffic lights near the road edges, spaced out
-  const trafficLightSpacing = 200;
-  for (let z = -roadLength / 2; z < roadLength / 2; z += trafficLightSpacing) {
+  // Traffic lights every 200 meters
+  for (let z = -roadLength / 2; z < roadLength / 2; z += 200) {
     createTrafficLight(-roadWidth / 2 - 2, z);
     createTrafficLight(roadWidth / 2 + 2, z);
   }
 }
 
-// Helper to create a lamppost
+// Helper: create a lamppost with a tall pole
 function createLamppost(x, z) {
-  const postGeom = new THREE.CylinderGeometry(0.05, 0.05, 4, 8);
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
-  const post = new THREE.Mesh(postGeom, postMat);
-  post.position.set(x, 2, z);
-  post.castShadow = true;
-  environmentGroup.add(post);
+  const poleGeom = new THREE.CylinderGeometry(0.05, 0.05, 4, 8);
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+  const pole = new THREE.Mesh(poleGeom, poleMat);
+  pole.position.set(x, 2, z);
+  pole.castShadow = true;
+  environmentGroup.add(pole);
 
-  // Light at top
-  const lampLightGeom = new THREE.SphereGeometry(0.2, 8, 8);
-  const lampLightMat = new THREE.MeshBasicMaterial({ color: 0xffe080 });
-  const lampLight = new THREE.Mesh(lampLightGeom, lampLightMat);
-  lampLight.position.set(x, 4, z);
-  environmentGroup.add(lampLight);
+  // Light sphere at top
+  const lampGeom = new THREE.SphereGeometry(0.2, 8, 8);
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+  const lamp = new THREE.Mesh(lampGeom, lampMat);
+  lamp.position.set(x, 4, z);
+  environmentGroup.add(lamp);
 
-  // Actual light
-  const lampPointLight = new THREE.PointLight(0xffe080, 0.8, 10);
-  lampPointLight.position.set(x, 4, z);
-  environmentGroup.add(lampPointLight);
+  // Real light
+  const light = new THREE.PointLight(0xffffaa, 0.7, 10);
+  light.position.set(x, 4, z);
+  environmentGroup.add(light);
 }
 
-// Helper to create a traffic light
+// Helper: create a traffic light with a pole
 function createTrafficLight(x, z) {
-  // Post
-  const postGeom = new THREE.CylinderGeometry(0.07, 0.07, 3, 8);
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
-  const post = new THREE.Mesh(postGeom, postMat);
-  post.position.set(x, 1.5, z);
-  post.castShadow = true;
-  environmentGroup.add(post);
+  // pole
+  const poleGeom = new THREE.CylinderGeometry(0.06, 0.06, 3, 8);
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+  const pole = new THREE.Mesh(poleGeom, poleMat);
+  pole.position.set(x, 1.5, z);
+  pole.castShadow = true;
+  environmentGroup.add(pole);
 
   // Light box
   const boxGeom = new THREE.BoxGeometry(0.4, 1, 0.4);
-  const boxMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  const boxMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
   const box = new THREE.Mesh(boxGeom, boxMat);
   box.position.set(x, 3, z);
   environmentGroup.add(box);
 
-  // Red / Yellow / Green bulbs
+  // 3 colored bulbs
   const bulbGeom = new THREE.SphereGeometry(0.1, 8, 8);
   const redMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
   const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
@@ -308,40 +263,37 @@ function createTrafficLight(x, z) {
 
 // ================== OBSTACLE POOL ==================
 function initObstaclePool() {
-  // We only init once all models are loaded. Check if we have them:
-  let allLoaded = obstacleTypes.every((type) => obstacleModels[type] != null);
-  if (!allLoaded) {
-    console.warn("Not all obstacle models loaded yet. Retrying in 2s...");
-    setTimeout(() => {
-      initObstaclePool();
-    }, 2000);
+  // Check if all models loaded
+  let loadedAll = obstacleTypes.every((t) => obstacleModels[t]);
+  if (!loadedAll) {
+    console.warn("Obstacle models not fully loaded yet. Retrying in 2s...");
+    setTimeout(() => initObstaclePool(), 2000);
     return;
   }
 
-  // For variety, we create a certain number of each
   for (let i = 0; i < maxObstacles; i++) {
-    // pick a random type
     let type = obstacleTypes[i % obstacleTypes.length];
-    let modelClone = obstacleModels[type].clone();
-    modelClone.userData.type = type;
-    // scale them differently
-    if (type === "taxi") modelClone.scale.set(0.5, 0.5, 0.5);
-    if (type === "bus") modelClone.scale.set(1, 1, 1);
-    if (type === "lgv") modelClone.scale.set(0.8, 0.8, 0.8);
-    if (type === "bike") modelClone.scale.set(1, 1, 1);
+    let clone = obstacleModels[type].clone();
+    clone.userData.type = type;
 
-    modelClone.traverse((child) => {
+    // scale each type
+    if (type === "taxi") clone.scale.set(0.5, 0.5, 0.5);
+    else if (type === "bus") clone.scale.set(1, 1, 1);
+    else if (type === "lgv") clone.scale.set(0.8, 0.8, 0.8);
+    else if (type === "bike") clone.scale.set(1, 1, 1);
+
+    clone.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
       }
     });
 
-    modelClone.visible = false;
-    environmentGroup.add(modelClone);
-    obstaclePool.push(modelClone);
+    clone.visible = false;
+    environmentGroup.add(clone);
+    obstaclePool.push(clone);
   }
-  console.log("Obstacle pool initialized with models:", obstaclePool.length);
+  console.log("Obstacle pool initialized. Count:", obstaclePool.length);
 }
 
 function getObstacleFromPool() {
@@ -351,7 +303,7 @@ function getObstacleFromPool() {
   return null;
 }
 
-// ================== SPAWN & UPDATE OBSTACLES ==================
+// ================== SPAWN/UPDATE OBSTACLES ==================
 function spawnObstacle() {
   if (!userCarLoaded || obstaclePool.length === 0) return;
 
@@ -359,15 +311,13 @@ function spawnObstacle() {
   if (!obs) return;
 
   obs.visible = true;
-  // random lane
   const lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
-  const spawnZ = MTC.position.z - 120 - Math.random() * 80; // in front
+  let spawnZ = MTC.position.z - 100 - Math.random() * 50;
   obs.position.set(lane, 0.2, spawnZ);
   obs.rotation.y = Math.PI;
 
   // random speed
   obs.userData.speed = (22.222 + difficultyRamp) + Math.random() * 10;
-
   obstacles.push(obs);
 }
 
@@ -379,7 +329,6 @@ function updateObstacles(dt) {
       continue;
     }
     obs.position.z -= obs.userData.speed * dt;
-    // remove if it goes too far behind
     if (obs.position.z > MTC.position.z + 50) {
       obs.visible = false;
       obstacles.splice(i, 1);
@@ -390,8 +339,8 @@ function updateObstacles(dt) {
 // ================== COLLISIONS ==================
 function checkCollisions() {
   if (!MTC) return;
+  const carBox = new THREE.Box3().setFromObject(MTC).expandByScalar(0.3);
 
-  let carBox = new THREE.Box3().setFromObject(MTC).expandByScalar(0.3);
   for (let i = obstacles.length - 1; i >= 0; i--) {
     let obs = obstacles[i];
     if (!obs.visible) continue;
@@ -408,7 +357,6 @@ function handleCollision() {
   collisionCount++;
   totalCollisions++;
   console.log("Collision #", collisionCount);
-
   if (collisionCount < 3) {
     displayWarningIndicator();
   } else {
@@ -432,16 +380,15 @@ function displayWarningIndicator() {
 function triggerGameOver() {
   if (gameOver) return;
   gameOver = true;
-
   cancelAnimationFrame(animationId);
 
   document.getElementById("speedometer").style.display = "none";
   document.getElementById("warningIndicator").style.display = "none";
 
-  // Final time
+  // Show final time
   document.getElementById("finalTime").textContent = formatTime(elapsedTime);
 
-  // Initiate camera orbit, then show the gameOver UI after
+  // Orbit camera, then show the gameOver UI
   startCameraOrbit(() => {
     document.getElementById("gameOver").style.display = "block";
   });
@@ -451,7 +398,6 @@ function triggerGameOver() {
 function handleGameCompletion() {
   if (gameCompleted) return;
   gameCompleted = true;
-
   cancelAnimationFrame(animationId);
 
   document.getElementById("speedometer").style.display = "none";
@@ -459,43 +405,36 @@ function handleGameCompletion() {
 
   document.getElementById("completionTime").textContent = formatTime(elapsedTime);
 
-  // Let’s store some stats for the scoreboard
-  // E.g., collisions, avg speed = distance / time
-  let averageSpeed = distance / elapsedTime; // m/s
-  averageSpeed *= 3.6; // convert to km/h
-  const resultLine = document.getElementById("gameResultStats");
-  resultLine.textContent = `Collisions: ${totalCollisions}, Avg Speed: ${averageSpeed.toFixed(
-    1
-  )} km/h, Final Score: ${scoreboard}`;
+  // Add some final stats text if you want
+  let avgSpeed = (distance / elapsedTime) * 3.6; // m/s -> km/h
+  document.getElementById("gameResultStats").textContent = `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
 
-  // Clear obstacles
   obstacles.forEach((o) => (o.visible = false));
   obstacles = [];
 
-  // Update & show leaderboard after camera orbit
+  // Leaderboard update after orbit
   startCameraOrbit(() => {
     updateLeaderboard();
     document.getElementById("gameComplete").style.display = "block";
   });
 }
 
-// ================== CAMERA ORBIT ANIMATION ==================
+// ================== CAMERA ORBIT ==================
 function startCameraOrbit(onComplete) {
   orbitActive = true;
   orbitStartTime = Date.now();
 
   function orbitStep() {
     const now = Date.now();
-    const t = (now - orbitStartTime) / 2000; // 2-second orbit
+    const t = (now - orbitStartTime) / 2000; // 2 seconds orbit
     if (t < 1) {
-      // do a 360 * t orbit around the car
-      const angle = 2 * Math.PI * t; // from 0 to 2π
+      const angle = 2 * Math.PI * t;
       const radius = 15;
       const centerZ = MTC ? MTC.position.z : 0;
       camera.position.x = Math.cos(angle) * radius;
       camera.position.z = centerZ + Math.sin(angle) * radius;
-      camera.position.y = 8 + 3 * Math.sin(t * Math.PI); // small up/down
-      if (MTC) camera.lookAt(MTC.position.x, MTC.position.y, MTC.position.z);
+      camera.position.y = 5 + 2 * Math.sin(t * Math.PI);
+      if (MTC) camera.lookAt(MTC.position);
       requestAnimationFrame(orbitStep);
     } else {
       orbitActive = false;
@@ -507,8 +446,6 @@ function startCameraOrbit(onComplete) {
 
 // ================== LEADERBOARD ==================
 function updateLeaderboard() {
-  // We’ll store the best times or final stats
-  // For this example, we store the time only. You could store collisions, etc.
   let position = null;
   for (let i = 0; i < leaderboard.length; i++) {
     if (elapsedTime < leaderboard[i].time) {
@@ -521,11 +458,10 @@ function updateLeaderboard() {
   }
   if (position !== null) {
     document.getElementById("nameInputContainer").style.display = "block";
-    const submitButton = document.getElementById("submitNameButton");
-    // Clear old listeners
-    submitButton.replaceWith(submitButton.cloneNode(true));
-    const newSubmit = document.getElementById("submitNameButton");
-    newSubmit.addEventListener("click", () => {
+    let submitBtn = document.getElementById("submitNameButton");
+    submitBtn.replaceWith(submitBtn.cloneNode(true));
+    submitBtn = document.getElementById("submitNameButton");
+    submitBtn.addEventListener("click", () => {
       const name = document.getElementById("nameInput").value.trim() || "Anonymous";
       leaderboard.splice(position, 0, {
         name,
@@ -558,36 +494,31 @@ function displayLeaderboard() {
     else if (index === 2) medal = "🥉";
     else medal = `${index + 1}.`;
 
-    // Show collisions, time, final score
-    const timeStr = formatTime(entry.time);
     li.innerHTML = `<span>${medal} ${entry.name}</span>
-                    <span>Time: ${timeStr}, Collisions: ${entry.collisions || 0}, Score: ${entry.score || 0}</span>`;
+                    <span>Time: ${formatTime(entry.time)}, Collisions: ${entry.collisions || 0}, Score: ${entry.score || 0}</span>`;
     list.appendChild(li);
   });
 }
 
 function updateBestTimeDisplay() {
   if (leaderboard.length > 0) {
-    document.getElementById("bestTime").textContent = `Best Time: ${formatTime(
-      leaderboard[0].time
-    )}`;
+    document.getElementById("bestTime").textContent = `Best Time: ${formatTime(leaderboard[0].time)}`;
   } else {
-    document.getElementById("bestTime").textContent = `Best Time: N/A`;
+    document.getElementById("bestTime").textContent = "Best Time: N/A";
   }
 }
 
-// ================== FORMAT TIME ==================
-function formatTime(s) {
-  const mins = Math.floor(s / 60);
-  const secs = Math.floor(s % 60);
-  const ms = Math.floor((s % 1) * 1000);
-  return `${mins}:${secs < 10 ? "0" : ""}${secs}.${ms}`;
+// ================== HELPERS ==================
+function formatTime(sec) {
+  const mins = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  const ms = Math.floor((sec % 1) * 1000);
+  return `${mins}:${s < 10 ? "0" : ""}${s}.${ms}`;
 }
 
 // ================== ANIMATION LOOP ==================
 function animate() {
   if (gameOver || gameCompleted) return;
-
   animationId = requestAnimationFrame(animate);
 
   const now = Date.now();
@@ -597,10 +528,9 @@ function animate() {
   elapsedTime = (now - startTime) / 1000;
   document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
 
-  // difficulty ramp
+  // ramp
   difficultyRamp = elapsedTime * 0.2;
 
-  // distance & scoreboard
   distance += velocity * dt;
   scoreboard = Math.floor(distance);
   document.getElementById("distance").textContent = `Distance: ${distance.toFixed(1)} m`;
@@ -612,13 +542,13 @@ function animate() {
     return;
   }
 
-  // Accel/Decel
+  // accelerate / decelerate
   if (accelerateInput) {
     velocity = Math.min(velocity + 5 * dt, maxVelocity);
   } else if (decelerateInput) {
     velocity = Math.max(velocity - 5 * dt, minVelocity);
   } else {
-    // mild inertia to base velocity
+    // inertial approach to base
     if (velocity > baseVelocity) {
       velocity = Math.max(velocity - 2 * dt, baseVelocity);
     } else if (velocity < baseVelocity) {
@@ -626,15 +556,14 @@ function animate() {
     }
   }
 
-  // speedometer
   document.getElementById("speedometer").textContent = `${(velocity * 3.6).toFixed(0)} km/h`;
 
-  // move the car forward
+  // move car forward
   if (MTC) {
     MTC.position.z -= velocity * dt;
   }
 
-  // L-R steering
+  // steering
   if (moveLeft) {
     MTC.position.x -= 0.05;
     MTC.rotation.z = 0.1;
@@ -645,7 +574,7 @@ function animate() {
     MTC.rotation.z *= 0.9;
   }
 
-  // obstacles
+  // update obstacles
   updateObstacles(dt);
   obstacleTimer += dt;
   if (obstacleTimer >= obstacleFrequency) {
@@ -653,19 +582,16 @@ function animate() {
     obstacleTimer = 0;
   }
 
-  // collisions
+  // check collisions
   checkCollisions();
 
-  // camera
-  updateCamera();
+  // camera follow if not orbiting
+  if (!orbitActive) updateCamera();
 
   renderer.render(scene, camera);
 }
 
 function updateCamera() {
-  if (!MTC) return;
-  if (orbitActive) return; // If orbit is active, skip normal follow
-
   const desiredPos = new THREE.Vector3(MTC.position.x, 5, MTC.position.z + 15);
   camera.position.lerp(desiredPos, 0.1);
   camera.lookAt(MTC.position.x, MTC.position.y, MTC.position.z);
@@ -710,7 +636,6 @@ function onJoystickEnd(e) {
   joystickActive = false;
   joystickKnob.classList.remove("active");
 
-  // reset knob
   joystickKnob.style.transition = "transform 0.3s ease";
   joystickKnob.style.transform = "translate(0,0)";
   setTimeout(() => {
@@ -726,9 +651,8 @@ function onJoystickEnd(e) {
 }
 
 function updateJoystick(e) {
+  let rect = joystickBase.getBoundingClientRect();
   let clientX, clientY;
-  const rect = joystickBase.getBoundingClientRect();
-
   if (e.touches) {
     clientX = e.touches[0].clientX;
     clientY = e.touches[0].clientY;
@@ -739,7 +663,6 @@ function updateJoystick(e) {
 
   let x = clientX - rect.left - rect.width / 2;
   let y = clientY - rect.top - rect.height / 2;
-
   let dist = Math.sqrt(x * x + y * y);
   let angle = Math.atan2(y, x);
 
@@ -748,11 +671,10 @@ function updateJoystick(e) {
   joystickX = (clampedDist * Math.cos(angle)) / joystickMaxDistance;
   joystickY = (clampedDist * Math.sin(angle)) / joystickMaxDistance;
 
-  const knobX = joystickX * joystickMaxDistance * 0.6;
-  const knobY = joystickY * joystickMaxDistance * 0.6;
+  let knobX = joystickX * joystickMaxDistance * 0.6;
+  let knobY = joystickY * joystickMaxDistance * 0.6;
   joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
-  // interpret
   const deadZone = 0.2;
   accelerateInput = joystickY > deadZone;
   decelerateInput = joystickY < -deadZone;
@@ -763,7 +685,6 @@ function updateJoystick(e) {
 // ================== START / RESTART ==================
 function startGame() {
   document.getElementById("start-screen").style.display = "none";
-  // Hide instructions or show them if you want
   document.getElementById("instructions").style.display = "none";
 
   startCameraAnimation();
@@ -773,25 +694,24 @@ function startCameraAnimation() {
   const startPos = new THREE.Vector3(0, 30, 100);
   const endPos = new THREE.Vector3(0, 5, 15);
   const duration = 1500;
-  const startTimeCam = Date.now();
+  const camStart = Date.now();
 
-  // quick manual approach
   camera.position.copy(startPos);
   camera.lookAt(0, 0, 0);
 
-  function animCam() {
+  function camAnim() {
     let now = Date.now();
-    let t = Math.min((now - startTimeCam) / duration, 1);
+    let t = Math.min((now - camStart) / duration, 1);
     camera.position.lerpVectors(startPos, endPos, t);
     camera.lookAt(0, 0, 0);
     if (t < 1) {
-      requestAnimationFrame(animCam);
+      requestAnimationFrame(camAnim);
     } else {
       resetGameState();
       animate();
     }
   }
-  animCam();
+  camAnim();
 }
 
 function resetGameState() {
@@ -810,11 +730,12 @@ function resetGameState() {
   document.getElementById("warningIndicator").classList.remove("flashing");
   document.getElementById("warningIndicator").style.animation = "";
 
-  // reset user car
+  // reset car
   if (MTC) {
     MTC.position.set(0, 1.1, 0);
     MTC.rotation.set(0, 0, 0);
   }
+
   // hide obstacles
   obstacles.forEach((obs) => (obs.visible = false));
   obstacles = [];
@@ -837,20 +758,20 @@ function onContinue() {
   window.location.href = "https://air.zone";
 }
 
-// ================== MAIN ENTRY ==================
+// ================== MAIN ==================
 initScene();
 loadModels();
 setupEnvironment();
 initJoystick();
 
-// Buttons
+// Hook up buttons
 document.getElementById("play-button").addEventListener("click", startGame);
 document.getElementById("restartButton").addEventListener("click", onRestart);
 document.getElementById("continueLink").addEventListener("click", onContinue);
 document.getElementById("restartButtonComplete").addEventListener("click", onRestart);
 document.getElementById("continueLinkComplete").addEventListener("click", onContinue);
 
-// Wait a few seconds for obstacle models to load, then create the pool
+// Wait a few seconds for models, then create obstacle pool
 setTimeout(() => {
   initObstaclePool();
 }, 4000);
