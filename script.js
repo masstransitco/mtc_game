@@ -9,8 +9,6 @@
  * 4) Sleeker UI with start screen, dark theme, simplified collisions.
  *********************************************************************/
 
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/loaders/GLTFLoader.js';
 
 // ============== GLOBAL VARIABLES & STATE ====================
 let scene, camera, renderer;
