@@ -1,71 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
-    />
-    <title>MTC Mini Game</title>
-    <link rel="stylesheet" href="./style.css" />
-  </head>
-  <body>
-    <!-- START SCREEN -->
-    <div id="start-screen">
-      <div id="start-overlay">
-        <h1>MTC MINI GAME</h1>
-        <button id="play-button">Play</button>
-      </div>
-    </div>
+<head>
+  <meta charset="UTF-8" />
+  <title>Car Collision Demo</title>
 
-    <!-- GAME UI (Same as your existing HTML structure) -->
-    <div id="speedometer">-- km/h</div>
-    <div id="warningIndicator">
-      <div id="warningCircle">
-        <div id="warningExclamation">!</div>
-      </div>
+  <!-- Include necessary libraries (adjust versions/CDNs as you like) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+
+  <!-- Link to our CSS -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Start Screen UI -->
+  <div id="start-screen">
+    <h1>Car Collision Demo</h1>
+    <p>Press Play to start!</p>
+    <button id="play-button">Play</button>
+  </div>
+  
+  <!-- Instructions Overlay -->
+  <div id="instructions">
+    <h2>Instructions</h2>
+    <p>Use the joystick or arrow keys to move!</p>
+  </div>
+
+  <!-- Main UI overlay: time, speed, distance, score -->
+  <div id="uiOverlay">
+    <div id="time">Time: 0:00.000</div>
+    <div id="speedometer">0 km/h</div>
+    <div id="distance">Distance: 0.0 m</div>
+    <div id="score">Score: 0</div>
+  </div>
+
+  <!-- Warning Indicator -->
+  <div id="warningIndicator">Collision!</div>
+
+  <!-- Health Bar -->
+  <div id="healthBarContainer">
+    <div id="healthBar"></div>
+  </div>
+
+  <!-- Joystick -->
+  <div id="joystick-base">
+    <div id="joystick-knob"></div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="gameOver">
+    <h2>GAME OVER</h2>
+    <p>Your Time: <span id="finalTime"></span></p>
+    <button id="restartButton">Restart</button>
+    <a id="continueLink">Continue</a>
+  </div>
+
+  <!-- Game Complete Screen -->
+  <div id="gameComplete">
+    <h2>CONGRATULATIONS!</h2>
+    <p>Completion Time: <span id="completionTime"></span></p>
+    <p id="gameResultStats"></p>
+    <div id="nameInputContainer">
+      <input id="nameInput" placeholder="Your name" />
+      <button id="submitNameButton">Submit</button>
     </div>
-    <div id="ui-container">
-      <div id="bestTime">Best Time: N/A</div>
-      <div id="distance">Distance: 0 m</div>
-      <div id="time">Time: 0 s</div>
-      <div id="score">Score: 0</div>
-    </div>
-    <div id="gameOver">
-      <h1>Trip Completed</h1>
-      <p>Driving Time: <span id="finalTime">0</span></p>
-      <button id="restartButton">Play Again</button>
-      <button id="continueLink">Continue →</button>
-    </div>
-    <div id="gameComplete">
-      <h1>Trip Completed</h1>
-      <p>Your Time: <span id="completionTime">0</span></p>
-      <div id="leaderboard">
-        <h2>Leaderboard</h2>
-        <ul id="leaderboardList"></ul>
-      </div>
-      <div id="nameInputContainer" style="display: none;">
-        <p>Enter your name:</p>
-        <input type="text" id="nameInput" maxlength="10" />
-        <button id="submitNameButton">↑</button>
-      </div>
-      <button id="restartButtonComplete">Play Again</button>
-      <button id="continueLinkComplete">Continue →</button>
-    </div>
-    <div id="joystick-container">
-      <div id="joystick-base">
-        <div id="joystick-knob"></div>
-      </div>
-    </div>
-    <div id="instructions">
-      <p>Use joystick to accelerate, decelerate, and steer.</p>
-      <p>Avoid collisions!</p>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="script.js"></script>
-    <!-- MAIN SCRIPT (ES module) -->
-    <script type="module" src="./script.js"></script>
-  </body>
+    <button id="restartButtonComplete">Restart</button>
+    <a id="continueLinkComplete">Continue</a>
+  </div>
+
+  <!-- Leaderboard -->
+  <div
+    style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); padding:10px; border-radius:4px;"
+  >
+    <h3>Leaderboard</h3>
+    <ul id="leaderboardList"></ul>
+    <p id="bestTime">Best Time: N/A</p>
+  </div>
+
+  <!-- Our main script file -->
+  <script src="script.js"></script>
+</body>
 </html>
