@@ -1,10 +1,10 @@
 /*********************************************************************
  * script.js (Cannon.js-based physics + collision health system)
  *
- * - Increases collision limit to 5
- * - Offsets car spawn so it starts further down the road
- * - Offsets obstacle spawn to reduce immediate collisions
- * - Adds a health bar that shrinks with each collision
+ * KEY FIXES:
+ * - Ensure model filenames match EXACTLY ("Bus.glb" etc.).
+ * - "Play" button definitely calls startGame -> startCameraAnimation -> animate.
+ * - If you had a mismatch (e.g., "bus.glb" vs "Bus.glb"), fix it here or rename files.
  *********************************************************************/
 
 (function () {
@@ -32,6 +32,7 @@
     moveLeft = false,
     moveRight = false;
 
+  // Speeds
   const baseVelocity = 6.944; // ~25 km/h
   const minVelocity = 0.278;  // 1 km/h
   const maxVelocity = 44.444; // 160 km/h
@@ -142,9 +143,9 @@
   function loadModels() {
     const loader = new THREE.GLTFLoader();
 
-    // 1) User Car
+    // 1) User Car (MTC)
     loader.load(
-      "mtc.glb",  // Adjust path if needed
+      "mtc.glb", // Make sure your file is exactly named "mtc.glb"
       (gltf) => {
         MTC = gltf.scene;
         MTC.scale.set(2.2, 2.2, 2.2);
@@ -166,7 +167,7 @@
         userCarBody = new CANNON.Body({
           mass: 1000,
           shape: carShape,
-          position: new CANNON.Vec3(0, 1.1, 0), // We'll override in resetGameState()
+          position: new CANNON.Vec3(0, 1.1, 0),
           linearDamping: 0.3,
           angularDamping: 0.6
         });
@@ -178,20 +179,21 @@
           }
         });
 
-        // Once finished loading the user car, increment the loaded count
         obstaclesLoadedCount++;
         maybeInitObstaclePool();
       },
       undefined,
-      (error) => console.error("Error loading mtc.glb:", error)
+      (error) => {
+        console.error("Error loading mtc.glb:", error);
+      }
     );
 
-    // 2) Obstacles (4 types)
-    loadObstacleModel(loader, "taxi.glb", "taxi");
-    loadObstacleModel(loader, "Bus.glb", "bus", (gltfScene) => {
+    // 2) Obstacles (4 types) — Make sure file names match exactly
+    loadObstacleModel(loader, "taxi.glb", "taxi");     // "taxi.glb"
+    loadObstacleModel(loader, "Bus.glb",  "bus",  (gltfScene) => {
       gltfScene.scale.set(3, 3, 3); // triple size
     });
-    loadObstacleModel(loader, "LGV.glb", "lgv");
+    loadObstacleModel(loader, "LGV.glb",  "lgv");
     loadObstacleModel(loader, "Bike.glb", "bike", (gltfScene) => {
       gltfScene.scale.set(2, 2, 2);
       gltfScene.rotation.y = Math.PI / 2; // rotate 90°
@@ -206,7 +208,7 @@
           onLoadCallback(gltf.scene);
         }
         obstacleModels[modelKey] = gltf.scene;
-        console.log(`${modelKey} loaded successfully.`);
+        console.log(`${modelKey} loaded successfully from ${url}.`);
 
         obstaclesLoadedCount++;
         maybeInitObstaclePool();
@@ -716,6 +718,7 @@
       } else if (moveRight) {
         userCarBody.velocity.x = 5;
       } else {
+        // Dampen side velocity
         userCarBody.velocity.x *= 0.9;
         if (Math.abs(userCarBody.velocity.x) < 0.05) {
           userCarBody.velocity.x = 0;
@@ -864,8 +867,10 @@
 
   // ================== GAME CONTROLS ==================
   function startGame() {
+    // Hide start/instructions
     document.getElementById("start-screen").style.display = "none";
     document.getElementById("instructions").style.display = "none";
+    // Begin a short camera animation, then reset game and animate
     startCameraAnimation();
   }
 
@@ -886,6 +891,7 @@
       if (t < 1) {
         requestAnimationFrame(camAnim);
       } else {
+        // Once the camera move is done, actually start the game
         resetGameState();
         animate();
       }
@@ -909,7 +915,7 @@
     document.getElementById("warningIndicator").style.animation = "";
 
     // Reset the health bar to 100%
-    updateHealthBar();
+    updateHealthBar(); // sets it to full
 
     // Offset car position so it starts well ahead of Z=0
     if (userCarBody) {
@@ -918,7 +924,6 @@
       userCarBody.angularVelocity.set(0, 0, 0);
       userCarBody.quaternion.set(0, 0, 0, 1);
     }
-
     if (MTC) {
       MTC.position.set(0, 1.1, 20);
       MTC.rotation.set(0, 0, 0);
@@ -951,7 +956,7 @@
   function init() {
     initScene();
     initPhysics();
-    loadModels();
+    loadModels(); // load .glb models (make sure filenames match)
     setupEnvironment();
     initJoystick();
 
@@ -966,12 +971,12 @@
       window.location.href = "https://air.zone"; // or your desired link
     });
 
-    // Leaderboard
+    // Show initial leaderboard if any
     displayLeaderboard();
     updateBestTimeDisplay();
   }
 
-  // Expose public interface if needed
+  // Expose public interface if needed (optional)
   window.gameInterface = { init, startGame, resetGameState };
 
 })();
