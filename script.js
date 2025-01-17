@@ -145,7 +145,7 @@
 
     // 1) User Car (MTC)
     loader.load(
-      "mtc.glb", // Make sure your file is exactly named "mtc.glb"
+      "MTC.glb", // Make sure your file is exactly named "mtc.glb"
       (gltf) => {
         MTC = gltf.scene;
         MTC.scale.set(2.2, 2.2, 2.2);
@@ -189,7 +189,7 @@
     );
 
     // 2) Obstacles (4 types) — Make sure file names match exactly
-    loadObstacleModel(loader, "taxi.glb", "taxi");     // "taxi.glb"
+    loadObstacleModel(loader, "TAXI.glb", "taxi");     // "taxi.glb"
     loadObstacleModel(loader, "Bus.glb",  "bus",  (gltfScene) => {
       gltfScene.scale.set(3, 3, 3); // triple size
     });
