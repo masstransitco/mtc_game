@@ -2,7 +2,7 @@
  * script.js (Cannon.js-based physics and performance optimizations)
  *
  * KEY FIX: 
- *   1) Use success/error callbacks in loader for each model 
+ *   1) Use success/error callbacks in loader for each model.
  *   2) Remove the infinite retry loop in `initObstaclePool()` 
  *      and call it automatically when *all* models are loaded.
  *
@@ -21,7 +21,7 @@
   let userCarLoaded = false;
 
   let physicsWorld;
-  let obstacleModels = {};  // { taxi, bus, lgv, bike }
+  let obstacleModels = {}; // { taxi, bus, lgv, bike }
   let obstaclePool = [];
   let obstacleBodies = [];
   let obstacles = [];
@@ -52,7 +52,7 @@
   let previousTime = 0;
   let animationId;
 
-  let obstacleFrequency = 2; 
+  let obstacleFrequency = 2;
   let obstacleTimer = 0;
   let difficultyRamp = 0;
   const completionDistance = 2000;
@@ -74,14 +74,15 @@
   let physicsDeltaTime = 0;
   const PHYSICS_STEP = 1 / 50;
 
-  // For tracking loaded obstacles
+  // For tracking loaded models
   let obstaclesLoadedCount = 0;
-  const TOTAL_OBSTACLES = obstacleTypes.length;
+  // We want to load 4 obstacle types + 1 user car = 5 total
+  const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1;
 
   // ================== SCENE SETUP ==================
   function initScene() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1C262D);
+    scene.background = new THREE.Color(0x1c262d);
 
     camera = new THREE.PerspectiveCamera(
       75,
@@ -127,7 +128,7 @@
     // Create a static ground plane
     const groundBody = new CANNON.Body({
       mass: 0,
-      shape: new CANNON.Plane()
+      shape: new CANNON.Plane(),
     });
     groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
     physicsWorld.addBody(groundBody);
@@ -169,7 +170,7 @@
           shape: carShape,
           position: new CANNON.Vec3(0, 1.1, 0),
           linearDamping: 0.3,
-          angularDamping: 0.6
+          angularDamping: 0.6,
         });
         physicsWorld.addBody(userCarBody);
 
@@ -178,13 +179,16 @@
             handleCollision();
           }
         });
+
+        // Once finished loading the user car, increment the loaded count
+        obstaclesLoadedCount++;
+        maybeInitObstaclePool();
       },
       undefined,
-      (err) => console.error("Error loading mtc.glb:", err)
+      (error) => console.error("Error loading mtc.glb:", error)
     );
 
     // 2) Obstacles (4 types)
-    // We'll load them individually, then check if all are loaded
     loadObstacleModel(loader, "taxi.glb", "taxi");
     loadObstacleModel(loader, "Bus.glb", "bus", (gltfScene) => {
       gltfScene.scale.set(3, 3, 3); // triple size
@@ -200,7 +204,7 @@
     loader.load(
       url,
       (gltf) => {
-        // Optionally run custom callback for scaling, rotation, etc.
+        // Optionally run custom callback (e.g. scaling, rotation)
         if (onLoadCallback) {
           onLoadCallback(gltf.scene);
         }
@@ -208,17 +212,25 @@
         console.log(`${modelKey} loaded successfully.`);
 
         obstaclesLoadedCount++;
-        // Once we've loaded all obstacle model types, create obstacle pool
-        if (obstaclesLoadedCount >= TOTAL_OBSTACLES) {
-          console.log("All obstacle models loaded. Initializing pool...");
-          initObstaclePool();
-        }
+        maybeInitObstaclePool();
       },
       undefined,
-      (err) => {
-        console.error(`Error loading ${url}:`, err);
+      (error) => {
+        console.error(`Error loading ${url}:`, error);
       }
     );
+  }
+
+  /**
+   * Once all required models (1 user car + 4 obstacle types = 5 total) have loaded,
+   * we can safely initialize the obstacle pool. This function is called each time
+   * a single model finishes loading and increments `obstaclesLoadedCount`.
+   */
+  function maybeInitObstaclePool() {
+    if (obstaclesLoadedCount >= TOTAL_MODELS_TO_LOAD) {
+      console.log("All models loaded. Initializing obstacle pool...");
+      initObstaclePool();
+    }
   }
 
   // ================== ENVIRONMENT SETUP ==================
@@ -239,17 +251,29 @@
     // Side barriers
     const barrierHeight = 1.2;
     const barrierThickness = 0.2;
-    const barrierGeom = new THREE.BoxGeometry(barrierThickness, barrierHeight, roadLength);
+    const barrierGeom = new THREE.BoxGeometry(
+      barrierThickness,
+      barrierHeight,
+      roadLength
+    );
     const barrierMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 
     const barrierLeft = new THREE.Mesh(barrierGeom, barrierMat);
-    barrierLeft.position.set(-roadWidth / 2 - barrierThickness / 2, barrierHeight / 2, 0);
+    barrierLeft.position.set(
+      -roadWidth / 2 - barrierThickness / 2,
+      barrierHeight / 2,
+      0
+    );
     barrierLeft.castShadow = true;
     barrierLeft.receiveShadow = true;
     environmentGroup.add(barrierLeft);
 
     const barrierRight = new THREE.Mesh(barrierGeom, barrierMat);
-    barrierRight.position.set(roadWidth / 2 + barrierThickness / 2, barrierHeight / 2, 0);
+    barrierRight.position.set(
+      roadWidth / 2 + barrierThickness / 2,
+      barrierHeight / 2,
+      0
+    );
     barrierRight.castShadow = true;
     barrierRight.receiveShadow = true;
     environmentGroup.add(barrierRight);
@@ -259,7 +283,7 @@
       poleGeom: new THREE.CylinderGeometry(0.05, 0.05, 4, 8),
       poleMat: new THREE.MeshLambertMaterial({ color: 0x555555 }),
       lampGeom: new THREE.SphereGeometry(0.2, 8, 8),
-      lampMat: new THREE.MeshBasicMaterial({ color: 0xffffaa })
+      lampMat: new THREE.MeshBasicMaterial({ color: 0xffffaa }),
     };
     const tLightData = {
       poleGeom: new THREE.CylinderGeometry(0.06, 0.06, 3, 8),
@@ -269,7 +293,7 @@
       bulbGeom: new THREE.SphereGeometry(0.1, 8, 8),
       redMat: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
       yellowMat: new THREE.MeshBasicMaterial({ color: 0xffff00 }),
-      greenMat: new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+      greenMat: new THREE.MeshBasicMaterial({ color: 0x00ff00 }),
     };
 
     // Place lampposts every 50m
@@ -290,7 +314,10 @@
     const lineLength = 1;
     const markerGeom = new THREE.PlaneGeometry(0.08, lineLength);
     markerGeom.rotateX(-Math.PI / 2);
-    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const markerMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+    });
 
     const numMarkersPerLane = Math.floor(roadLength / spacing);
     const totalMarkers = numMarkersPerLane * lanes.length;
@@ -348,7 +375,6 @@
 
   // ================== OBSTACLE POOL ==================
   function initObstaclePool() {
-    // Now that all are loaded, build the pool
     console.log("Initializing obstacle pool...");
     for (let i = 0; i < maxObstacles; i++) {
       const type = obstacleTypes[i % obstacleTypes.length];
@@ -375,7 +401,11 @@
       const size = new THREE.Vector3();
       boundingBox.getSize(size);
 
-      const halfExtents = new CANNON.Vec3(size.x * 0.5, size.y * 0.5, size.z * 0.5);
+      const halfExtents = new CANNON.Vec3(
+        size.x * 0.5,
+        size.y * 0.5,
+        size.z * 0.5
+      );
       const shape = new CANNON.Box(halfExtents);
       const body = new CANNON.Body({
         mass: 600,
@@ -427,7 +457,7 @@
     obsBody.angularVelocity.set(0, 0, 0);
     obsBody.quaternion.setFromEuler(0, Math.PI, 0);
 
-    const obstacleSpeed = (22.222 + difficultyRamp) + Math.random() * 10;
+    const obstacleSpeed = 22.222 + difficultyRamp + Math.random() * 10;
     obsBody.userData.speed = obstacleSpeed;
 
     obstacles.push({ mesh: obs, body: obsBody });
@@ -437,7 +467,10 @@
     const frustum = new THREE.Frustum();
     const projScreenMatrix = new THREE.Matrix4();
     camera.updateMatrixWorld();
-    projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    projScreenMatrix.multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse
+    );
     frustum.setFromProjectionMatrix(projScreenMatrix);
 
     for (let i = obstacles.length - 1; i >= 0; i--) {
@@ -511,8 +544,9 @@
 
     document.getElementById("completionTime").textContent = formatTime(elapsedTime);
     const avgSpeed = (distance / elapsedTime) * 3.6;
-    document.getElementById("gameResultStats").textContent =
-      `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
+    document.getElementById("gameResultStats").textContent = `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(
+      1
+    )} km/h, Score: ${scoreboard}`;
 
     obstacles.forEach(({ mesh, body }) => {
       mesh.visible = false;
@@ -719,7 +753,9 @@
 
   function updateVisuals(dt) {
     elapsedTime = (Date.now() - startTime) / 1000;
-    document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
+    document.getElementById("time").textContent = `Time: ${formatTime(
+      elapsedTime
+    )}`;
 
     difficultyRamp = elapsedTime * 0.2;
 
@@ -739,7 +775,9 @@
     // Speedometer
     if (userCarBody) {
       const speedKmh = Math.abs(userCarBody.velocity.length()) * 3.6;
-      document.getElementById("speedometer").textContent = `${speedKmh.toFixed(0)} km/h`;
+      document.getElementById("speedometer").textContent = `${speedKmh.toFixed(
+        0
+      )} km/h`;
     }
 
     // Car tilt
@@ -777,7 +815,11 @@
       userCarBody.position.z + 15
     );
     camera.position.lerp(desiredPos, 0.1);
-    camera.lookAt(userCarBody.position.x, userCarBody.position.y, userCarBody.position.z);
+    camera.lookAt(
+      userCarBody.position.x,
+      userCarBody.position.y,
+      userCarBody.position.z
+    );
   }
 
   // ================== LEADERBOARD ==================
@@ -795,8 +837,10 @@
     if (position !== null) {
       document.getElementById("nameInputContainer").style.display = "block";
       let submitBtn = document.getElementById("submitNameButton");
+      // ensure previous events are cleared by cloning
       submitBtn.replaceWith(submitBtn.cloneNode(true));
       submitBtn = document.getElementById("submitNameButton");
+
       submitBtn.addEventListener("click", () => {
         const name = document.getElementById("nameInput").value.trim() || "Anonymous";
         leaderboard.splice(position, 0, {
@@ -831,15 +875,18 @@
       else medal = `${index + 1}.`;
 
       li.innerHTML = `<span>${medal} ${entry.name}</span>
-                     <span>Time: ${formatTime(entry.time)}, Collisions: ${entry.collisions || 0}, Score: ${entry.score || 0}</span>`;
+                     <span>Time: ${formatTime(entry.time)}, Collisions: ${
+        entry.collisions || 0
+      }, Score: ${entry.score || 0}</span>`;
       list.appendChild(li);
     });
   }
 
   function updateBestTimeDisplay() {
     if (leaderboard.length > 0) {
-      document.getElementById("bestTime").textContent =
-        `Best Time: ${formatTime(leaderboard[0].time)}`;
+      document.getElementById("bestTime").textContent = `Best Time: ${formatTime(
+        leaderboard[0].time
+      )}`;
     } else {
       document.getElementById("bestTime").textContent = "Best Time: N/A";
     }
@@ -931,8 +978,8 @@
   function init() {
     initScene();
     initPhysics();
-    loadModels();        // Models load asynchronously
-    setupEnvironment();  // Immediately sets up road/barriers so we see something
+    loadModels(); // Models load asynchronously
+    setupEnvironment(); // Immediately sets up road/barriers so we see something
     initJoystick();
 
     // Hook up UI
@@ -946,8 +993,9 @@
       window.location.href = "https://air.zone";
     });
 
-    // We no longer forcibly call `initObstaclePool()` here.
-    // It's automatically called once all obstacle models have loaded (via loadObstacleModel callbacks).
+    // We DO NOT call `initObstaclePool()` here anymore;
+    // it’s automatically triggered via the model loader callbacks
+    // once all obstacle models (and the user car) have loaded.
 
     // Show leaderboard
     displayLeaderboard();
@@ -958,9 +1006,8 @@
   window.gameInterface = {
     init,
     startGame,
-    resetGameState
+    resetGameState,
   };
-
 })();
 
 // Initialize the game on DOMContentLoaded
