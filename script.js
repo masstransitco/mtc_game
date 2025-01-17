@@ -1,15 +1,10 @@
 /*********************************************************************
- * script.js (Cannon.js-based physics and performance optimizations)
+ * script.js (Cannon.js-based physics + collision health system)
  *
- * KEY FIX: 
- *   1) Use success/error callbacks in loader for each model.
- *   2) Remove the infinite retry loop in `initObstaclePool()` 
- *      and call it automatically when *all* models are loaded.
- *
- * REQUIRES:
- *   1) Cannon.js  (e.g. https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js)
- *   2) Three.js   (e.g. https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js)
- *   3) GLTFLoader (e.g. https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js)
+ * - Increases collision limit to 5
+ * - Offsets car spawn so it starts further down the road
+ * - Offsets obstacle spawn to reduce immediate collisions
+ * - Adds a health bar that shrinks with each collision
  *********************************************************************/
 
 (function () {
@@ -30,20 +25,24 @@
   const maxObstacles = 10;
 
   let lanePositions = [-2, 0, 2];
+
+  // Player inputs
   let accelerateInput = false,
     decelerateInput = false,
     moveLeft = false,
     moveRight = false;
 
-  let velocity = 6.944; // ~25 km/h
-  const baseVelocity = 6.944;
-  const minVelocity = 0.278;
-  const maxVelocity = 44.444;
+  const baseVelocity = 6.944; // ~25 km/h
+  const minVelocity = 0.278;  // 1 km/h
+  const maxVelocity = 44.444; // 160 km/h
 
+  // Collisions, game states
   let collisionCount = 0;
+  let maxCollisions = 5; // ALLOW 5 collisions before game over
   let gameOver = false;
   let gameCompleted = false;
 
+  // Distances, scoreboard
   let distance = 0;
   let scoreboard = 0;
   let totalCollisions = 0;
@@ -52,11 +51,12 @@
   let previousTime = 0;
   let animationId;
 
-  let obstacleFrequency = 2;
+  let obstacleFrequency = 2; // spawn every 2 seconds
   let obstacleTimer = 0;
   let difficultyRamp = 0;
   const completionDistance = 2000;
 
+  // Orbit camera effect
   let orbitActive = false;
   let orbitStartTime = 0;
 
@@ -74,15 +74,14 @@
   let physicsDeltaTime = 0;
   const PHYSICS_STEP = 1 / 50;
 
-  // For tracking loaded models
+  // For tracking loaded models (4 obstacles + 1 car)
   let obstaclesLoadedCount = 0;
-  // We want to load 4 obstacle types + 1 user car = 5 total
   const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1;
 
   // ================== SCENE SETUP ==================
   function initScene() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1c262d);
+    scene.background = new THREE.Color(0x1C262D);
 
     camera = new THREE.PerspectiveCamera(
       75,
@@ -95,7 +94,6 @@
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-
     document.body.appendChild(renderer.domElement);
 
     environmentGroup = new THREE.Group();
@@ -128,7 +126,7 @@
     // Create a static ground plane
     const groundBody = new CANNON.Body({
       mass: 0,
-      shape: new CANNON.Plane(),
+      shape: new CANNON.Plane()
     });
     groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
     physicsWorld.addBody(groundBody);
@@ -146,7 +144,7 @@
 
     // 1) User Car
     loader.load(
-      "mtc.glb",
+      "mtc.glb",  // Adjust path if needed
       (gltf) => {
         MTC = gltf.scene;
         MTC.scale.set(2.2, 2.2, 2.2);
@@ -168,9 +166,9 @@
         userCarBody = new CANNON.Body({
           mass: 1000,
           shape: carShape,
-          position: new CANNON.Vec3(0, 1.1, 0),
+          position: new CANNON.Vec3(0, 1.1, 0), // We'll override in resetGameState()
           linearDamping: 0.3,
-          angularDamping: 0.6,
+          angularDamping: 0.6
         });
         physicsWorld.addBody(userCarBody);
 
@@ -204,7 +202,6 @@
     loader.load(
       url,
       (gltf) => {
-        // Optionally run custom callback (e.g. scaling, rotation)
         if (onLoadCallback) {
           onLoadCallback(gltf.scene);
         }
@@ -221,11 +218,6 @@
     );
   }
 
-  /**
-   * Once all required models (1 user car + 4 obstacle types = 5 total) have loaded,
-   * we can safely initialize the obstacle pool. This function is called each time
-   * a single model finishes loading and increments `obstaclesLoadedCount`.
-   */
   function maybeInitObstaclePool() {
     if (obstaclesLoadedCount >= TOTAL_MODELS_TO_LOAD) {
       console.log("All models loaded. Initializing obstacle pool...");
@@ -251,39 +243,27 @@
     // Side barriers
     const barrierHeight = 1.2;
     const barrierThickness = 0.2;
-    const barrierGeom = new THREE.BoxGeometry(
-      barrierThickness,
-      barrierHeight,
-      roadLength
-    );
+    const barrierGeom = new THREE.BoxGeometry(barrierThickness, barrierHeight, roadLength);
     const barrierMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
 
     const barrierLeft = new THREE.Mesh(barrierGeom, barrierMat);
-    barrierLeft.position.set(
-      -roadWidth / 2 - barrierThickness / 2,
-      barrierHeight / 2,
-      0
-    );
+    barrierLeft.position.set(-roadWidth / 2 - barrierThickness / 2, barrierHeight / 2, 0);
     barrierLeft.castShadow = true;
     barrierLeft.receiveShadow = true;
     environmentGroup.add(barrierLeft);
 
     const barrierRight = new THREE.Mesh(barrierGeom, barrierMat);
-    barrierRight.position.set(
-      roadWidth / 2 + barrierThickness / 2,
-      barrierHeight / 2,
-      0
-    );
+    barrierRight.position.set(roadWidth / 2 + barrierThickness / 2, barrierHeight / 2, 0);
     barrierRight.castShadow = true;
     barrierRight.receiveShadow = true;
     environmentGroup.add(barrierRight);
 
-    // Lampposts & Traffic Lights
+    // Lights/lampposts
     const lamppostData = {
       poleGeom: new THREE.CylinderGeometry(0.05, 0.05, 4, 8),
       poleMat: new THREE.MeshLambertMaterial({ color: 0x555555 }),
       lampGeom: new THREE.SphereGeometry(0.2, 8, 8),
-      lampMat: new THREE.MeshBasicMaterial({ color: 0xffffaa }),
+      lampMat: new THREE.MeshBasicMaterial({ color: 0xffffaa })
     };
     const tLightData = {
       poleGeom: new THREE.CylinderGeometry(0.06, 0.06, 3, 8),
@@ -293,7 +273,7 @@
       bulbGeom: new THREE.SphereGeometry(0.1, 8, 8),
       redMat: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
       yellowMat: new THREE.MeshBasicMaterial({ color: 0xffff00 }),
-      greenMat: new THREE.MeshBasicMaterial({ color: 0x00ff00 }),
+      greenMat: new THREE.MeshBasicMaterial({ color: 0x00ff00 })
     };
 
     // Place lampposts every 50m
@@ -314,10 +294,7 @@
     const lineLength = 1;
     const markerGeom = new THREE.PlaneGeometry(0.08, lineLength);
     markerGeom.rotateX(-Math.PI / 2);
-    const markerMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      side: THREE.DoubleSide,
-    });
+    const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
 
     const numMarkersPerLane = Math.floor(roadLength / spacing);
     const totalMarkers = numMarkersPerLane * lanes.length;
@@ -401,17 +378,13 @@
       const size = new THREE.Vector3();
       boundingBox.getSize(size);
 
-      const halfExtents = new CANNON.Vec3(
-        size.x * 0.5,
-        size.y * 0.5,
-        size.z * 0.5
-      );
+      const halfExtents = new CANNON.Vec3(size.x * 0.5, size.y * 0.5, size.z * 0.5);
       const shape = new CANNON.Box(halfExtents);
       const body = new CANNON.Body({
         mass: 600,
         shape: shape,
         linearDamping: 0.2,
-        angularDamping: 0.4,
+        angularDamping: 0.4
       });
       body.userData = { isObstacle: true, type };
       physicsWorld.addBody(body);
@@ -447,7 +420,9 @@
 
     obs.visible = true;
     const lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
-    const spawnZ = userCarBody.position.z - 100 - Math.random() * 50;
+
+    // Increase offset so obstacles spawn further behind the player
+    const spawnZ = userCarBody.position.z - 150 - Math.random() * 100;
 
     obs.position.set(lane, 0.2, spawnZ);
     obs.rotation.set(0, Math.PI, 0);
@@ -467,15 +442,13 @@
     const frustum = new THREE.Frustum();
     const projScreenMatrix = new THREE.Matrix4();
     camera.updateMatrixWorld();
-    projScreenMatrix.multiplyMatrices(
-      camera.projectionMatrix,
-      camera.matrixWorldInverse
-    );
+    projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(projScreenMatrix);
 
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const { mesh, body } = obstacles[i];
 
+      // Remove if they pass a certain threshold in front
       if (body.position.z > userCarBody.position.z + 50) {
         mesh.visible = false;
         body.position.set(0, -1000, 0);
@@ -483,6 +456,7 @@
         continue;
       }
 
+      // If it's not visible in the frustum and has gone far enough, remove
       if (!frustum.intersectsObject(mesh)) {
         if (body.position.z > userCarBody.position.z + 100) {
           mesh.visible = false;
@@ -493,29 +467,38 @@
     }
   }
 
-  // ================== COLLISIONS ==================
+  // ================== COLLISIONS (WITH HEALTH BAR) ==================
   function handleCollision() {
+    if (gameOver) return;
+
     collisionCount++;
     totalCollisions++;
     console.log("Collision #", collisionCount);
 
-    if (collisionCount < 3) {
-      displayWarningIndicator();
-    } else {
+    updateHealthBar();
+
+    if (collisionCount >= maxCollisions) {
       triggerGameOver();
+    } else {
+      displayWarningIndicator();
+    }
+  }
+
+  // Update the health bar from 100% down to 0% as collisions happen
+  function updateHealthBar() {
+    const healthLeft = maxCollisions - collisionCount;
+    const percentage = (healthLeft / maxCollisions) * 100;
+    const bar = document.getElementById("healthBar");
+    if (bar) {
+      bar.style.width = percentage + "%";
     }
   }
 
   // ================== WARNING INDICATOR ==================
   function displayWarningIndicator() {
     const indicator = document.getElementById("warningIndicator");
-    if (collisionCount === 1) {
-      indicator.style.display = "block";
-      indicator.classList.add("flashing");
-    } else if (collisionCount === 2) {
-      indicator.classList.remove("flashing");
-      indicator.style.animation = "flash 0.5s infinite";
-    }
+    indicator.style.display = "block";
+    indicator.classList.add("flashing");
   }
 
   // ================== GAME OVER ==================
@@ -544,9 +527,8 @@
 
     document.getElementById("completionTime").textContent = formatTime(elapsedTime);
     const avgSpeed = (distance / elapsedTime) * 3.6;
-    document.getElementById("gameResultStats").textContent = `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(
-      1
-    )} km/h, Score: ${scoreboard}`;
+    document.getElementById("gameResultStats").textContent =
+      `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
 
     obstacles.forEach(({ mesh, body }) => {
       mesh.visible = false;
@@ -753,9 +735,7 @@
 
   function updateVisuals(dt) {
     elapsedTime = (Date.now() - startTime) / 1000;
-    document.getElementById("time").textContent = `Time: ${formatTime(
-      elapsedTime
-    )}`;
+    document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
 
     difficultyRamp = elapsedTime * 0.2;
 
@@ -775,9 +755,7 @@
     // Speedometer
     if (userCarBody) {
       const speedKmh = Math.abs(userCarBody.velocity.length()) * 3.6;
-      document.getElementById("speedometer").textContent = `${speedKmh.toFixed(
-        0
-      )} km/h`;
+      document.getElementById("speedometer").textContent = `${speedKmh.toFixed(0)} km/h`;
     }
 
     // Car tilt
@@ -809,11 +787,7 @@
 
   function updateCamera() {
     if (!userCarBody) return;
-    const desiredPos = new THREE.Vector3(
-      userCarBody.position.x,
-      5,
-      userCarBody.position.z + 15
-    );
+    const desiredPos = new THREE.Vector3(userCarBody.position.x, 5, userCarBody.position.z + 15);
     camera.position.lerp(desiredPos, 0.1);
     camera.lookAt(
       userCarBody.position.x,
@@ -840,7 +814,6 @@
       // ensure previous events are cleared by cloning
       submitBtn.replaceWith(submitBtn.cloneNode(true));
       submitBtn = document.getElementById("submitNameButton");
-
       submitBtn.addEventListener("click", () => {
         const name = document.getElementById("nameInput").value.trim() || "Anonymous";
         leaderboard.splice(position, 0, {
@@ -875,18 +848,15 @@
       else medal = `${index + 1}.`;
 
       li.innerHTML = `<span>${medal} ${entry.name}</span>
-                     <span>Time: ${formatTime(entry.time)}, Collisions: ${
-        entry.collisions || 0
-      }, Score: ${entry.score || 0}</span>`;
+                     <span>Time: ${formatTime(entry.time)}, Collisions: ${entry.collisions || 0}, Score: ${entry.score || 0}</span>`;
       list.appendChild(li);
     });
   }
 
   function updateBestTimeDisplay() {
     if (leaderboard.length > 0) {
-      document.getElementById("bestTime").textContent = `Best Time: ${formatTime(
-        leaderboard[0].time
-      )}`;
+      document.getElementById("bestTime").textContent =
+        `Best Time: ${formatTime(leaderboard[0].time)}`;
     } else {
       document.getElementById("bestTime").textContent = "Best Time: N/A";
     }
@@ -928,7 +898,6 @@
     totalCollisions = 0;
     distance = 0;
     scoreboard = 0;
-    velocity = baseVelocity;
     gameOver = false;
     gameCompleted = false;
     orbitActive = false;
@@ -939,15 +908,19 @@
     document.getElementById("warningIndicator").classList.remove("flashing");
     document.getElementById("warningIndicator").style.animation = "";
 
+    // Reset the health bar to 100%
+    updateHealthBar();
+
+    // Offset car position so it starts well ahead of Z=0
     if (userCarBody) {
-      userCarBody.position.set(0, 1.1, 0);
+      userCarBody.position.set(0, 1.1, 20);
       userCarBody.velocity.set(0, 0, 0);
       userCarBody.angularVelocity.set(0, 0, 0);
       userCarBody.quaternion.set(0, 0, 0, 1);
     }
 
     if (MTC) {
-      MTC.position.set(0, 1.1, 0);
+      MTC.position.set(0, 1.1, 20);
       MTC.rotation.set(0, 0, 0);
     }
 
@@ -978,39 +951,32 @@
   function init() {
     initScene();
     initPhysics();
-    loadModels(); // Models load asynchronously
-    setupEnvironment(); // Immediately sets up road/barriers so we see something
+    loadModels();
+    setupEnvironment();
     initJoystick();
 
     // Hook up UI
     document.getElementById("play-button").addEventListener("click", startGame);
     document.getElementById("restartButton").addEventListener("click", resetGameState);
     document.getElementById("continueLink").addEventListener("click", () => {
-      window.location.href = "https://air.zone";
+      window.location.href = "https://air.zone"; // or your desired link
     });
     document.getElementById("restartButtonComplete").addEventListener("click", resetGameState);
     document.getElementById("continueLinkComplete").addEventListener("click", () => {
-      window.location.href = "https://air.zone";
+      window.location.href = "https://air.zone"; // or your desired link
     });
 
-    // We DO NOT call `initObstaclePool()` here anymore;
-    // it’s automatically triggered via the model loader callbacks
-    // once all obstacle models (and the user car) have loaded.
-
-    // Show leaderboard
+    // Leaderboard
     displayLeaderboard();
     updateBestTimeDisplay();
   }
 
-  // ================== EXPOSE PUBLIC INTERFACE ==================
-  window.gameInterface = {
-    init,
-    startGame,
-    resetGameState,
-  };
+  // Expose public interface if needed
+  window.gameInterface = { init, startGame, resetGameState };
+
 })();
 
-// Initialize the game on DOMContentLoaded
+// Initialize once DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   window.gameInterface.init();
 });
