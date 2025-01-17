@@ -1,18 +1,13 @@
 /*********************************************************************
- * script.js
- * 
- * Three.js Mini-Game with:
- *  - 3 lanes ([-2, 0, 2]) with flat lane markings
- *  - Road plane + side barriers
- *  - Lampposts, traffic lights with poles
- *  - Car (mtc.glb) + obstacle vehicles (taxi, Bus, LGV, Bike)
- *  - Collision detection
- *  - Leaderboard, camera orbit on game completion (2,000m).
- *  - Fixes for the issues reported: fewer lanes, correct lane lines,
- *    visible environment, obstacle spawning, scoreboard, and final orbit.
+ * Optimized script.js
+ *
+ * Key performance changes:
+ *  1) InstancedMesh for lane markings
+ *  2) Reused geometries for lampposts & traffic lights
+ *  3) Cached bounding boxes in local space for collision checks
+ *  4) Optionally reduced or disabled some logs/shadow settings
  *********************************************************************/
 
-// ================== GLOBALS ==================
 let scene, camera, renderer;
 let environmentGroup;
 let MTC; // user car
@@ -58,6 +53,9 @@ let orbitStartTime = 0;
 // Leaderboard
 let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
 
+// [Perf] Cache a bounding box for the user’s car in local space, once loaded.
+let userCarLocalBox = new THREE.Box3();
+
 // ================== SCENE SETUP ==================
 function initScene() {
   scene = new THREE.Scene();
@@ -73,7 +71,11 @@ function initScene() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // [Perf] Possibly choose a more efficient shadow map type or limit shadow usage.
   renderer.shadowMap.enabled = true;
+  // renderer.shadowMap.type = THREE.PCFSoftShadowMap; // optional
+
   document.body.appendChild(renderer.domElement);
 
   environmentGroup = new THREE.Group();
@@ -85,7 +87,13 @@ function initScene() {
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
   dirLight.position.set(10, 20, 10);
+
+  // [Perf] Fine-tune shadow settings to reduce overhead
   dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.camera.near = 1;
+  dirLight.shadow.camera.far = 100;
   scene.add(dirLight);
 
   window.addEventListener("resize", onWindowResize, false);
@@ -108,37 +116,31 @@ function loadModels() {
       MTC = gltf.scene;
       MTC.scale.set(2.2, 2.2, 2.2);
       MTC.position.set(0, 1.1, 0);
-      MTC.castShadow = true;
-      MTC.receiveShadow = true;
+
+      MTC.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
       environmentGroup.add(MTC);
       userCarLoaded = true;
-      console.log("User car loaded (mtc.glb).");
+
+      // [Perf] Compute local bounding box once
+      userCarLocalBox.setFromObject(MTC);
+
+      // console.log("User car loaded.");
     },
     undefined,
     (err) => console.error("Error loading mtc.glb:", err)
   );
 
   // 2) Obstacles
-  // Taxi
-  loader.load("taxi.glb", (gltf) => {
-    obstacleModels.taxi = gltf.scene;
-    console.log("Taxi loaded.");
-  });
-  // Bus
-  loader.load("Bus.glb", (gltf) => {
-    obstacleModels.bus = gltf.scene;
-    console.log("Bus loaded.");
-  });
-  // LGV
-  loader.load("LGV.glb", (gltf) => {
-    obstacleModels.lgv = gltf.scene;
-    console.log("LGV loaded.");
-  });
-  // Bike
-  loader.load("Bike.glb", (gltf) => {
-    obstacleModels.bike = gltf.scene;
-    console.log("Bike loaded.");
-  });
+  loader.load("taxi.glb", (gltf) => (obstacleModels.taxi = gltf.scene));
+  loader.load("Bus.glb", (gltf) => (obstacleModels.bus = gltf.scene));
+  loader.load("LGV.glb", (gltf) => (obstacleModels.lgv = gltf.scene));
+  loader.load("Bike.glb", (gltf) => (obstacleModels.bike = gltf.scene));
 }
 
 // ================== ENVIRONMENT ==================
@@ -153,22 +155,8 @@ function setupEnvironment() {
   road.receiveShadow = true;
   environmentGroup.add(road);
 
-  // Lane Markings (flat)
-  const spacing = 10;
-  const lineLength = 1;
-  for (let z = -roadLength / 2; z < roadLength / 2; z += spacing) {
-    lanePositions.forEach((laneX) => {
-      const markerGeom = new THREE.PlaneGeometry(0.08, lineLength);
-      const markerMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        side: THREE.DoubleSide,
-      });
-      const marker = new THREE.Mesh(markerGeom, markerMat);
-      marker.rotation.x = -Math.PI / 2; // lie flat
-      marker.position.set(laneX, 0.01, z);
-      environmentGroup.add(marker);
-    });
-  }
+  // [Perf] Lane Markings with InstancedMesh
+  createLaneMarkingsInstanced(roadLength, lanePositions);
 
   // Side Barriers
   const barrierHeight = 1.2;
@@ -190,73 +178,103 @@ function setupEnvironment() {
   barrierRight.receiveShadow = true;
   environmentGroup.add(barrierRight);
 
+  // Reuse geometry for lampposts
+  const lamppostData = {
+    poleGeom: new THREE.CylinderGeometry(0.05, 0.05, 4, 8),
+    poleMat: new THREE.MeshLambertMaterial({ color: 0x555555 }),
+    lampGeom: new THREE.SphereGeometry(0.2, 8, 8),
+    lampMat: new THREE.MeshBasicMaterial({ color: 0xffffaa })
+  };
+
+  // Reuse geometry for traffic lights
+  const tLightData = {
+    poleGeom: new THREE.CylinderGeometry(0.06, 0.06, 3, 8),
+    poleMat: new THREE.MeshLambertMaterial({ color: 0x444444 }),
+    boxGeom: new THREE.BoxGeometry(0.4, 1, 0.4),
+    boxMat: new THREE.MeshLambertMaterial({ color: 0x222222 }),
+    bulbGeom: new THREE.SphereGeometry(0.1, 8, 8),
+    redMat: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
+    yellowMat: new THREE.MeshBasicMaterial({ color: 0xffff00 }),
+    greenMat: new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+  };
+
   // Let's add lampposts every 50 meters
   for (let z = -roadLength / 2; z < roadLength / 2; z += 50) {
-    createLamppost(-roadWidth / 2 - 1, z);
-    createLamppost(roadWidth / 2 + 1, z);
+    createLamppost(-roadWidth / 2 - 1, z, lamppostData);
+    createLamppost(roadWidth / 2 + 1, z, lamppostData);
   }
 
   // Traffic lights every 200 meters
   for (let z = -roadLength / 2; z < roadLength / 2; z += 200) {
-    createTrafficLight(-roadWidth / 2 - 2, z);
-    createTrafficLight(roadWidth / 2 + 2, z);
+    createTrafficLight(-roadWidth / 2 - 2, z, tLightData);
+    createTrafficLight(roadWidth / 2 + 2, z, tLightData);
   }
 }
 
-// Helper: create a lamppost with a tall pole
-function createLamppost(x, z) {
-  const poleGeom = new THREE.CylinderGeometry(0.05, 0.05, 4, 8);
-  const poleMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
-  const pole = new THREE.Mesh(poleGeom, poleMat);
+// [Perf] InstancedMesh approach for lane markings
+function createLaneMarkingsInstanced(roadLength, lanes) {
+  const spacing = 10;
+  const lineLength = 1;
+
+  // Single geometry & material
+  const markerGeom = new THREE.PlaneGeometry(0.08, lineLength);
+  markerGeom.rotateX(-Math.PI / 2); // so it’s flat by default
+  const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+
+  // Calculate how many markers needed
+  const numMarkersPerLane = Math.floor(roadLength / spacing);
+  const totalMarkers = numMarkersPerLane * lanes.length;
+
+  const instanced = new THREE.InstancedMesh(markerGeom, markerMat, totalMarkers);
+  let index = 0;
+  for (let z = -roadLength / 2; z < roadLength / 2; z += spacing) {
+    for (let laneX of lanes) {
+      const dummy = new THREE.Object3D();
+      dummy.position.set(laneX, 0.01, z);
+      dummy.updateMatrix();
+      instanced.setMatrixAt(index++, dummy.matrix);
+    }
+  }
+  environmentGroup.add(instanced);
+}
+
+// Helper: create a lamppost with a tall pole (reuse geometry data)
+function createLamppost(x, z, data) {
+  const pole = new THREE.Mesh(data.poleGeom, data.poleMat);
   pole.position.set(x, 2, z);
   pole.castShadow = true;
   environmentGroup.add(pole);
 
-  // Light sphere at top
-  const lampGeom = new THREE.SphereGeometry(0.2, 8, 8);
-  const lampMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-  const lamp = new THREE.Mesh(lampGeom, lampMat);
+  const lamp = new THREE.Mesh(data.lampGeom, data.lampMat);
   lamp.position.set(x, 4, z);
   environmentGroup.add(lamp);
 
-  // Real light
   const light = new THREE.PointLight(0xffffaa, 0.7, 10);
   light.position.set(x, 4, z);
   environmentGroup.add(light);
 }
 
 // Helper: create a traffic light with a pole
-function createTrafficLight(x, z) {
-  // pole
-  const poleGeom = new THREE.CylinderGeometry(0.06, 0.06, 3, 8);
-  const poleMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
-  const pole = new THREE.Mesh(poleGeom, poleMat);
+function createTrafficLight(x, z, data) {
+  const pole = new THREE.Mesh(data.poleGeom, data.poleMat);
   pole.position.set(x, 1.5, z);
   pole.castShadow = true;
   environmentGroup.add(pole);
 
-  // Light box
-  const boxGeom = new THREE.BoxGeometry(0.4, 1, 0.4);
-  const boxMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
-  const box = new THREE.Mesh(boxGeom, boxMat);
+  const box = new THREE.Mesh(data.boxGeom, data.boxMat);
   box.position.set(x, 3, z);
   environmentGroup.add(box);
 
-  // 3 colored bulbs
-  const bulbGeom = new THREE.SphereGeometry(0.1, 8, 8);
-  const redMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-  const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-  const greenMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-
-  const redBulb = new THREE.Mesh(bulbGeom, redMat);
+  // bulbs
+  const redBulb = new THREE.Mesh(data.bulbGeom, data.redMat);
   redBulb.position.set(0, 0.3, 0);
   box.add(redBulb);
 
-  const yellowBulb = new THREE.Mesh(bulbGeom, yellowMat);
+  const yellowBulb = new THREE.Mesh(data.bulbGeom, data.yellowMat);
   yellowBulb.position.set(0, 0, 0);
   box.add(yellowBulb);
 
-  const greenBulb = new THREE.Mesh(bulbGeom, greenMat);
+  const greenBulb = new THREE.Mesh(data.bulbGeom, data.greenMat);
   greenBulb.position.set(0, -0.3, 0);
   box.add(greenBulb);
 }
@@ -289,11 +307,14 @@ function initObstaclePool() {
       }
     });
 
+    // [Perf] Precompute a local bounding box for each obstacle
+    clone.userData.localBox = new THREE.Box3().setFromObject(clone);
+
     clone.visible = false;
     environmentGroup.add(clone);
     obstaclePool.push(clone);
   }
-  console.log("Obstacle pool initialized. Count:", obstaclePool.length);
+  // console.log("Obstacle pool initialized. Count:", obstaclePool.length);
 }
 
 function getObstacleFromPool() {
@@ -339,12 +360,17 @@ function updateObstacles(dt) {
 // ================== COLLISIONS ==================
 function checkCollisions() {
   if (!MTC) return;
-  const carBox = new THREE.Box3().setFromObject(MTC).expandByScalar(0.3);
+
+  // [Perf] Instead of setFromObject each frame, transform userCarLocalBox
+  const carBox = transformBoundingBox(userCarLocalBox, MTC.matrixWorld, 0.3);
 
   for (let i = obstacles.length - 1; i >= 0; i--) {
     let obs = obstacles[i];
     if (!obs.visible) continue;
-    let obsBox = new THREE.Box3().setFromObject(obs).expandByScalar(0.3);
+
+    // [Perf] Transform obstacle’s local box
+    const obsBox = transformBoundingBox(obs.userData.localBox, obs.matrixWorld, 0.3);
+
     if (carBox.intersectsBox(obsBox)) {
       handleCollision();
       obs.visible = false;
@@ -353,10 +379,18 @@ function checkCollisions() {
   }
 }
 
+// [Perf] Utility to transform a cached local bounding box by a world matrix
+function transformBoundingBox(localBox, matrixWorld, expand = 0) {
+  const box = localBox.clone();
+  box.expandByScalar(expand);
+  box.applyMatrix4(matrixWorld);
+  return box;
+}
+
 function handleCollision() {
   collisionCount++;
   totalCollisions++;
-  console.log("Collision #", collisionCount);
+
   if (collisionCount < 3) {
     displayWarningIndicator();
   } else {
@@ -385,10 +419,8 @@ function triggerGameOver() {
   document.getElementById("speedometer").style.display = "none";
   document.getElementById("warningIndicator").style.display = "none";
 
-  // Show final time
   document.getElementById("finalTime").textContent = formatTime(elapsedTime);
 
-  // Orbit camera, then show the gameOver UI
   startCameraOrbit(() => {
     document.getElementById("gameOver").style.display = "block";
   });
@@ -405,14 +437,14 @@ function handleGameCompletion() {
 
   document.getElementById("completionTime").textContent = formatTime(elapsedTime);
 
-  // Add some final stats text if you want
   let avgSpeed = (distance / elapsedTime) * 3.6; // m/s -> km/h
-  document.getElementById("gameResultStats").textContent = `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
+  document.getElementById("gameResultStats").textContent = `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(
+    1
+  )} km/h, Score: ${scoreboard}`;
 
   obstacles.forEach((o) => (o.visible = false));
   obstacles = [];
 
-  // Leaderboard update after orbit
   startCameraOrbit(() => {
     updateLeaderboard();
     document.getElementById("gameComplete").style.display = "block";
@@ -528,7 +560,6 @@ function animate() {
   elapsedTime = (now - startTime) / 1000;
   document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
 
-  // ramp
   difficultyRamp = elapsedTime * 0.2;
 
   distance += velocity * dt;
@@ -771,7 +802,6 @@ document.getElementById("continueLink").addEventListener("click", onContinue);
 document.getElementById("restartButtonComplete").addEventListener("click", onRestart);
 document.getElementById("continueLinkComplete").addEventListener("click", onContinue);
 
-// Wait a few seconds for models, then create obstacle pool
 setTimeout(() => {
   initObstaclePool();
 }, 4000);
