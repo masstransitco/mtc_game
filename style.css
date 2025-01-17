@@ -24,8 +24,9 @@ body, html {
   display: none; /* hidden by default */
 }
 
+/* Show the start screen at launch */
 #start-screen {
-  display: block; /* show at very beginning */
+  display: block;
 }
 
 button, a {
