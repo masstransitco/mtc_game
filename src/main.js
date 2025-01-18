@@ -17,8 +17,8 @@ let obstaclePool = [];
 let obstacleBodies = [];
 let obstacles = [];
 
-const obstacleTypes = ["taxi", "bus", "lgv"]; // Removed 'bike'
-const maxObstacles = 3; // Further reduced for performance
+const obstacleTypes = ["taxi", "bus", "lgv"]; // 'bike' removed
+const maxObstacles = 3; 
 
 let lanePositions = [-2, 0, 2];
 
@@ -28,8 +28,8 @@ let accelerateInput = false,
   moveLeft = false,
   moveRight = false;
 
-// Speeds
-const baseVelocity = 6.944; // ~25 km/h
+// Speeds (Now we move **forward** in the +Z direction)
+const baseVelocity = 6.944; // ~25 km/h, positive Z
 const minVelocity = 0.278;  // 1 km/h
 const maxVelocity = 44.444; // 160 km/h
 
@@ -70,11 +70,11 @@ let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
 
 // Physics stepping
 let physicsDeltaTime = 0;
-const PHYSICS_STEP = 1 / 60; // Increased to 60 steps per second for smoother physics
+const PHYSICS_STEP = 1 / 60; // 60 steps/sec for smoother physics
 
-// For tracking loaded models (3 obstacles + 1 car)
+// For tracking loaded models
 let obstaclesLoadedCount = 0;
-const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1;
+const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1; // (3 obstacles + 1 car)
 
 // Invulnerability after game start
 let invulnerable = true;
@@ -82,7 +82,6 @@ const invulnerabilityDuration = 3000; // 3 seconds
 
 // ================== CRITICAL FUNCTIONS ==================
 
-// 1. Define getObstacleFromPool early to ensure it's accessible
 function getObstacleFromPool() {
   for (let i = 0; i < obstaclePool.length; i++) {
     if (!obstaclePool[i].visible) {
@@ -92,7 +91,6 @@ function getObstacleFromPool() {
   return -1;
 }
 
-// 2. Initialize obstacle pool once all models are loaded
 function maybeInitObstaclePool() {
   if (obstaclesLoadedCount >= TOTAL_MODELS_TO_LOAD) {
     console.log("All models loaded. Initializing obstacle pool...");
@@ -100,7 +98,6 @@ function maybeInitObstaclePool() {
   }
 }
 
-// 3. Create fallback models in case of loading errors
 function createFallbackModel(type) {
   const geometries = {
     taxi: new THREE.BoxGeometry(2, 1, 4),
@@ -123,7 +120,6 @@ function createFallbackModel(type) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
 
-  // Compute bounding sphere
   if (mesh.geometry) {
     mesh.geometry.computeBoundingSphere();
   }
@@ -131,7 +127,6 @@ function createFallbackModel(type) {
   return mesh;
 }
 
-// 4. Handle model loading errors by using fallback models
 function handleModelLoadError(type) {
   console.log(`Using fallback for ${type}`);
   const fallbackModel = createFallbackModel(type);
@@ -140,7 +135,6 @@ function handleModelLoadError(type) {
   maybeInitObstaclePool();
 }
 
-// 5. Enhanced model loading with error handling and fallbacks
 function loadModels() {
   const loader = new GLTFLoader();
   const loadingManager = new THREE.LoadingManager();
@@ -149,7 +143,7 @@ function loadModels() {
     console.error('Error loading:', url);
   };
 
-  // Load user car (MTC)
+  // ========== Load user car (MTC) ==========
   loader.load(
     "/MTC.glb",
     (gltf) => {
@@ -225,7 +219,7 @@ function loadModels() {
     }
   );
 
-  // Modified obstacle loading function
+  // ========== Helper for obstacle loading ==========
   function loadObstacleModel(loader, url, modelKey, onLoadCallback) {
     loader.load(
       url,
@@ -261,13 +255,13 @@ function loadModels() {
     );
   }
 
-  // Load obstacles with proper error handling
+  // ========== Load obstacles with error handling ==========
   loadObstacleModel(loader, "/TAXI.glb", "taxi");
   loadObstacleModel(loader, "/Bus.glb", "bus", (gltfScene) => {
     gltfScene.scale.set(3, 3, 3);
   });
   loadObstacleModel(loader, "/LGV.glb", "lgv");
-  // Removed: loadObstacleModel(loader, "/Bike.glb", "bike", ...);
+  // (Removed "bike")
 }
 
 // ================== SCENE & PHYSICS SETUP ==================
@@ -281,7 +275,7 @@ function initScene() {
     0.1,
     4000
   );
-  camera.position.set(0, 5, 15);
+  camera.position.set(0, 5, -15); // Start camera behind car if car is at z=0
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -296,10 +290,11 @@ function initScene() {
   scene.add(ambientLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(10, 20, 10);
+  dirLight.position.set(10, 20, -10);
   dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 512; // Reduced for performance
-  dirLight.shadow.mapSize.height = 512; // Reduced for performance
+  // Lower resolution shadow maps to improve performance
+  dirLight.shadow.mapSize.width = 512;
+  dirLight.shadow.mapSize.height = 512;
   dirLight.shadow.camera.near = 1;
   dirLight.shadow.camera.far = 100;
   scene.add(dirLight);
@@ -320,7 +315,8 @@ function initPhysics() {
     allowSleep: true
   });
   physicsWorld.solver.iterations = 10;
-  physicsWorld.defaultContactMaterial.friction = 0.6; // Increased friction for more 'car-like' behavior
+  // Increase friction so the car doesn't slide sideways too much
+  physicsWorld.defaultContactMaterial.friction = 0.6;
 
   // Static ground
   const groundBody = new CANNON.Body({
@@ -333,7 +329,7 @@ function initPhysics() {
 
 // ================== ENVIRONMENT & OBSTACLES ==================
 function setupEnvironment() {
-  // Road
+  // Road (planar geometry)
   const roadWidth = 6;
   const roadLength = 4000;
   const roadGeom = new THREE.PlaneGeometry(roadWidth, roadLength);
@@ -465,10 +461,10 @@ function initObstaclePool() {
       continue;
     }
 
-    // Clone the entire model.scene instead of just the main mesh
-    const clone = model.clone(true); // Deep clone to include all child meshes
+    // Clone the entire model
+    const clone = model.clone(true); 
 
-    // Ensure all child meshes have shadows enabled and mark as obstacles
+    // Ensure all child meshes have shadows enabled & mark as obstacles
     clone.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
@@ -481,7 +477,7 @@ function initObstaclePool() {
     environmentGroup.add(clone);
     obstaclePool.push(clone);
 
-    // Create Cannon body for the entire cloned model
+    // Create Cannon body
     const boundingBox = new THREE.Box3().setFromObject(clone);
     const size = new THREE.Vector3();
     boundingBox.getSize(size);
@@ -489,13 +485,12 @@ function initObstaclePool() {
     const halfExtents = new CANNON.Vec3(size.x * 0.5, size.y * 0.5, size.z * 0.5);
     const shape = new CANNON.Box(halfExtents);
     const body = new CANNON.Body({
-      mass: 500, // slightly lighter than user car
+      mass: 500, 
       shape: shape,
       linearDamping: 0.3,
-      angularDamping: 0.8 // higher damping to reduce spinning
+      angularDamping: 0.8
     });
 
-    // Keep obstacles upright
     body.fixedRotation = true;
     body.updateMassProperties();
 
@@ -503,7 +498,6 @@ function initObstaclePool() {
     physicsWorld.addBody(body);
     obstacleBodies.push(body);
 
-    // Associate the physics body with the cloned mesh
     clone.userData.physicsBody = body;
 
     body.addEventListener("collide", (evt) => {
@@ -524,38 +518,34 @@ function spawnObstacle() {
 
   const obs = obstaclePool[poolIndex];
   const obsBody = obstacleBodies[poolIndex];
-
-  if (!obs || !obsBody) {
-    console.warn(`Obstacle or its physics body at index ${poolIndex} is undefined.`);
-    return;
-  }
+  if (!obs || !obsBody) return;
 
   obs.visible = true;
   const lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
 
-  // Spawn ahead of the user car to simulate approaching
-  const spawnZ = userCarBody.position.z - 150 - Math.random() * 100;
+  // ==============================
+  // Spawn **in front** of the car
+  // (since the user car moves +Z)
+  // ==============================
+  const spawnZ = userCarBody.position.z + 150 + Math.random() * 100;
 
   obs.position.set(lane, 0.2, spawnZ);
-  obs.rotation.set(0, Math.PI, 0);
+  obs.rotation.set(0, 0, 0);
 
   obsBody.position.set(lane, 0.2, spawnZ);
-  obsBody.velocity.set(0, 0, 0); // Reset velocity
+  obsBody.velocity.set(0, 0, 0); 
   obsBody.angularVelocity.set(0, 0, 0);
-  obsBody.quaternion.setFromEuler(0, Math.PI, 0);
+  obsBody.quaternion.setFromEuler(0, 0, 0);
 
+  // Move obstacles TOWARD the car => negative Z
+  // If the user car is ~ 25 km/h, let's set obstacle speed ~ 80 km/h + difficulty
   const obstacleSpeed = 22.222 + difficultyRamp + Math.random() * 10;
   obsBody.userData.speed = obstacleSpeed;
 
-  // Set velocity towards the car (negative Z direction)
+  // Negative Z velocity to approach the player
   obsBody.velocity.set(0, 0, -obstacleSpeed);
 
   obstacles.push({ mesh: obs, body: obsBody });
-
-  console.log(
-    `Spawned obstacle '${obs.userData.type}' at (${lane}, 0.2, ${spawnZ.toFixed(2)}) ` +
-    `with speed ${obstacleSpeed.toFixed(2)} km/h`
-  );
 }
 
 function updateObstacles(dt) {
@@ -568,30 +558,25 @@ function updateObstacles(dt) {
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const obstacle = obstacles[i];
     if (!obstacle || !obstacle.mesh || !obstacle.body) {
-      console.warn(`Obstacle at index ${i} is missing mesh or body.`);
       obstacles.splice(i, 1);
       continue;
     }
-
     const { mesh, body } = obstacle;
 
-    if (!mesh.geometry) {
-      console.warn(`Mesh geometry missing for obstacle at index ${i}.`);
-      obstacles.splice(i, 1);
-      continue;
-    }
-
-    // If the obstacle is too far in front
-    if (body.position.z > userCarBody.position.z + 50) {
+    // If obstacle goes behind the car by some margin, hide & recycle it
+    // The car is moving +Z, obstacle is moving -Z,
+    // so if obstacle's Z < userCarBody.position.z - 50 => it's passed the car
+    if (body.position.z < userCarBody.position.z - 50) {
       mesh.visible = false;
-      body.position.set(0, -1000, 0); // Move it out of sight
+      body.position.set(0, -1000, 0); // Hide it
       obstacles.splice(i, 1);
       continue;
     }
 
-    // If not in camera frustum and gone far enough, remove it
+    // You can do extra frustum-based removal if desired
     if (!frustum.intersectsObject(mesh)) {
-      if (body.position.z > userCarBody.position.z + 100) {
+      // If beyond some range, remove
+      if (body.position.z < userCarBody.position.z - 100) {
         mesh.visible = false;
         body.position.set(0, -1000, 0);
         obstacles.splice(i, 1);
@@ -631,7 +616,6 @@ function displayWarningIndicator() {
   if (indicator) {
     indicator.style.display = "block";
     indicator.classList.add("flashing");
-    // Remove the flashing class after the animation completes to allow re-triggering
     indicator.addEventListener('animationend', () => {
       indicator.classList.remove("flashing");
     }, { once: true });
@@ -643,7 +627,7 @@ function triggerGameOver() {
   if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(animationId);
-  animationId = null; // Reset animationId
+  animationId = null;
 
   const speedometer = document.getElementById("speedometer");
   const warningIndicator = document.getElementById("warningIndicator");
@@ -653,7 +637,6 @@ function triggerGameOver() {
   const finalTime = document.getElementById("finalTime");
   if (finalTime) finalTime.textContent = formatTime(elapsedTime);
 
-  // Run orbit camera, then show game over UI
   startCameraOrbit(() => {
     const gameOverElement = document.getElementById("gameOver");
     if (gameOverElement) gameOverElement.style.display = "block";
@@ -664,7 +647,7 @@ function handleGameCompletion() {
   if (gameCompleted) return;
   gameCompleted = true;
   cancelAnimationFrame(animationId);
-  animationId = null; // Reset animationId
+  animationId = null;
 
   const speedometer = document.getElementById("speedometer");
   const warningIndicator = document.getElementById("warningIndicator");
@@ -681,14 +664,12 @@ function handleGameCompletion() {
       `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
   }
 
-  // Remove obstacles from scene
   obstacles.forEach(({ mesh, body }) => {
     mesh.visible = false;
     body.position.set(0, -1000, 0);
   });
   obstacles = [];
 
-  // Orbit camera, then update leaderboard & show completion UI
   startCameraOrbit(() => {
     updateLeaderboard();
     const gameCompleteElement = document.getElementById("gameComplete");
@@ -703,7 +684,7 @@ function startCameraOrbit(onComplete) {
 
   function orbitStep() {
     const now = Date.now();
-    const t = (now - orbitStartTime) / 2000; // 2 seconds duration
+    const t = (now - orbitStartTime) / 2000; // 2s duration
     if (t < 1) {
       const angle = 2 * Math.PI * t;
       const radius = 15;
@@ -725,12 +706,11 @@ function startCameraOrbit(onComplete) {
 function initJoystick() {
   joystickBase = document.getElementById("joystick-base");
   joystickKnob = document.getElementById("joystick-knob");
-
   if (!joystickBase || !joystickKnob) return;
 
   joystickMaxDistance = joystickBase.offsetWidth / 2;
 
-  // Clean up old listeners to prevent multiple bindings
+  // Clean up old listeners
   joystickBase.removeEventListener("touchstart", onJoystickStart);
   joystickBase.removeEventListener("touchmove", onJoystickMove);
   joystickBase.removeEventListener("touchend", onJoystickEnd);
@@ -797,7 +777,6 @@ function updateJoystick(e) {
   const angle = Math.atan2(y, x);
 
   const clampedDist = Math.min(dist, joystickMaxDistance);
-
   joystickX = (clampedDist * Math.cos(angle)) / joystickMaxDistance;
   joystickY = (clampedDist * Math.sin(angle)) / joystickMaxDistance;
 
@@ -806,23 +785,19 @@ function updateJoystick(e) {
   joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
   const deadZone = 0.2;
-  accelerateInput = joystickY > deadZone;
-  decelerateInput = joystickY < -deadZone;
+  accelerateInput = joystickY < -deadZone; // For +Z, invert these
+  decelerateInput = joystickY > deadZone;
   moveLeft = joystickX < -deadZone;
   moveRight = joystickX > deadZone;
-
-  // Debugging Logs
-  console.log(`Joystick Inputs - Accelerate: ${accelerateInput}, Decelerate: ${decelerateInput}, Move Left: ${moveLeft}, Move Right: ${moveRight}`);
 }
 
 // ================== MAIN ANIMATION LOOP ==================
 function animate() {
   if (gameOver || gameCompleted) {
     cancelAnimationFrame(animationId);
-    animationId = null; // Reset animationId
+    animationId = null;
     return;
   }
-
   animationId = requestAnimationFrame(animate);
 
   const now = Date.now();
@@ -852,23 +827,31 @@ function updatePhysics(dt) {
   physicsWorld.step(dt);
 
   if (userCarBody) {
-    // Forward/back
+    // Current forward velocity in +Z
     let currentVelZ = userCarBody.velocity.z;
+
+    // =============== FORWARD/BACK ===============
+    // accelerateInput => increase +Z velocity
+    // decelerateInput => reduce +Z velocity
     if (accelerateInput) {
-      currentVelZ = Math.max(currentVelZ - 5, -maxVelocity);
+      currentVelZ = Math.min(currentVelZ + 5, maxVelocity);
     } else if (decelerateInput) {
-      currentVelZ = Math.min(currentVelZ + 5, -minVelocity);
+      currentVelZ = Math.max(currentVelZ - 5, minVelocity);
     } else {
-      const baseZ = -baseVelocity;
-      if (currentVelZ < baseZ) {
-        currentVelZ = Math.min(currentVelZ + 2 * dt, baseZ);
-      } else if (currentVelZ > baseZ) {
+      // Gradually approach baseVelocity if no input
+      const baseZ = baseVelocity;
+      // If above baseZ, slow down
+      if (currentVelZ > baseZ) {
         currentVelZ = Math.max(currentVelZ - 2 * dt, baseZ);
+      } 
+      // If below baseZ, speed up
+      else if (currentVelZ < baseZ) {
+        currentVelZ = Math.min(currentVelZ + 2 * dt, baseZ);
       }
     }
     userCarBody.velocity.z = currentVelZ;
 
-    // Side movement
+    // =============== SIDE MOVEMENT ===============
     if (moveLeft) {
       userCarBody.velocity.x = -5;
     } else if (moveRight) {
@@ -880,19 +863,12 @@ function updatePhysics(dt) {
         userCarBody.velocity.x = 0;
       }
     }
-
-    // Debugging Logs
-    console.log(`User Car Velocity - X: ${userCarBody.velocity.x.toFixed(2)}, Y: ${userCarBody.velocity.y.toFixed(2)}, Z: ${userCarBody.velocity.z.toFixed(2)}`);
   }
 
-  // Update obstacle velocities
-  obstacles.forEach(({ body }) => {
-    // Since obstacles have their velocity set when spawned, no need to update here
-    // This section can be used if obstacles need dynamic speed changes
-    // body.velocity.z = -body.userData.speed; // Already set during spawn
-  });
+  // Update obstacle velocities if needed
+  // (Currently set once at spawn; you can refine if you like)
 
-  // Sync
+  // Synchronize meshes & bodies
   syncMeshesToBodies();
   updateObstacles(dt);
 }
@@ -908,7 +884,8 @@ function updateVisuals(dt) {
 
   // Distance & scoreboard
   if (userCarBody) {
-    distance = Math.max(0, -userCarBody.position.z);
+    // The car's forward distance
+    distance = Math.max(0, userCarBody.position.z);
   }
   scoreboard = Math.floor(distance);
 
@@ -937,7 +914,7 @@ function updateVisuals(dt) {
     }
   }
 
-  // Car tilt based on side movement
+  // Car tilt (visual only)
   if (MTC) {
     if (moveLeft) {
       MTC.rotation.z = 0.1;
@@ -961,12 +938,10 @@ function syncMeshesToBodies() {
   }
 
   obstacles.forEach(({ mesh, body }) => {
-    if (!mesh || !body) {
-      console.warn("Obstacle mesh or body is undefined.");
-      return;
+    if (mesh && body) {
+      mesh.position.copy(body.position);
+      mesh.quaternion.copy(body.quaternion);
     }
-    mesh.position.copy(body.position);
-    mesh.quaternion.copy(body.quaternion);
   });
 }
 
@@ -975,7 +950,7 @@ function updateCamera() {
   const desiredPos = new THREE.Vector3(
     userCarBody.position.x,
     5,
-    userCarBody.position.z + 15
+    userCarBody.position.z - 15  // camera behind the car
   );
   camera.position.lerp(desiredPos, 0.1);
   camera.lookAt(
@@ -1002,10 +977,9 @@ function updateLeaderboard() {
     if (nameInputContainer) {
       nameInputContainer.style.display = "block";
     }
-
     let submitBtn = document.getElementById("submitNameButton");
     if (submitBtn) {
-      // Ensure previous events are cleared by cloning
+      // Clear old events
       submitBtn.replaceWith(submitBtn.cloneNode(true));
       submitBtn = document.getElementById("submitNameButton");
       if (submitBtn) {
@@ -1052,7 +1026,7 @@ function displayLeaderboard() {
     else medal = `${index + 1}.`;
 
     li.innerHTML = `<span>${medal} ${entry.name}</span>
-                   <span>Time: ${formatTime(entry.time)}, Collisions: ${entry.collisions || 0}, Score: ${entry.score || 0}</span>`;
+                    <span>Time: ${formatTime(entry.time)}, Collisions: ${entry.collisions || 0}, Score: ${entry.score || 0}</span>`;
     list.appendChild(li);
   });
 }
@@ -1075,14 +1049,14 @@ function startGame() {
   if (startScreen) startScreen.style.display = "none";
   if (instructions) instructions.style.display = "none";
 
-  // Begin a short camera animation, then reset game and animate
+  // Camera animation, then start
   startCameraAnimation();
 }
 
 function startCameraAnimation() {
-  const startPos = new THREE.Vector3(0, 30, 100);
-  const endPos = new THREE.Vector3(0, 5, 15);
-  const duration = 1500; // in milliseconds
+  const startPos = new THREE.Vector3(0, 30, -100);
+  const endPos = new THREE.Vector3(0, 5, -15);
+  const duration = 1500;
   const camStart = Date.now();
 
   camera.position.copy(startPos);
@@ -1096,7 +1070,6 @@ function startCameraAnimation() {
     if (t < 1) {
       requestAnimationFrame(camAnim);
     } else {
-      // Once the camera move is done, actually start the game
       resetGameState();
       animate();
     }
@@ -1125,17 +1098,17 @@ function resetGameState() {
   }
 
   // Reset the health bar to 100%
-  updateHealthBar(); // sets it to full
+  updateHealthBar();
 
-  // Offset car position so it starts well ahead of Z=0
+  // Reset user car position so it's near z=0 but above ground
   if (userCarBody) {
-    userCarBody.position.set(0, 1.1, 20); // Ensure y=1.1 is above ground
+    userCarBody.position.set(0, 1.1, 0);
     userCarBody.velocity.set(0, 0, 0);
     userCarBody.angularVelocity.set(0, 0, 0);
     userCarBody.quaternion.set(0, 0, 0, 1);
   }
   if (MTC) {
-    MTC.position.set(0, 1.1, 20);
+    MTC.position.set(0, 1.1, 0);
     MTC.rotation.set(0, 0, 0);
   }
 
@@ -1173,7 +1146,7 @@ function formatTime(sec) {
 function init() {
   initScene();
   initPhysics();
-  loadModels(); // Load .glb models (ensure filenames match)
+  loadModels(); 
   setupEnvironment();
   initJoystick();
 
@@ -1198,12 +1171,11 @@ function init() {
   continueLinks.forEach(link => {
     if (link) {
       link.addEventListener("click", () => {
-        window.location.href = "https://air.zone"; // or any desired link
+        window.location.href = "https://air.zone";
       });
     }
   });
 
-  // Show initial leaderboard if any
   displayLeaderboard();
   updateBestTimeDisplay();
 }
