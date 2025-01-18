@@ -4,13 +4,11 @@
   <meta charset="UTF-8" />
   <title>Car Collision Demo</title>
 
-  <!-- Include necessary libraries (adjust versions/CDNs as you like) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
-
   <!-- Link to our external CSS -->
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Optional: Meta tags for responsiveness and better mobile support -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
   <!-- Start Screen UI -->
@@ -77,7 +75,7 @@
     <p id="bestTime">Best Time: N/A</p>
   </div>
 
-  <!-- Our main script file -->
-  <script src="script.js"></script>
+  <!-- Our main script file as an ES Module -->
+  <script type="module" src="script.js"></script>
 </body>
 </html>
