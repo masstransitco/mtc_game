@@ -75,6 +75,163 @@ const PHYSICS_STEP = 1 / 50;
 let obstaclesLoadedCount = 0;
 const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1;
 
+// ================== CRITICAL FUNCTIONS ==================
+
+// This needs to be defined before any loading functions
+function maybeInitObstaclePool() {
+  if (obstaclesLoadedCount >= TOTAL_MODELS_TO_LOAD) {
+    console.log("All models loaded. Initializing obstacle pool...");
+    initObstaclePool();
+  }
+}
+
+function createFallbackModel(type) {
+  const geometries = {
+    taxi: new THREE.BoxGeometry(2, 1, 4),
+    bus: new THREE.BoxGeometry(3, 2, 7),
+    lgv: new THREE.BoxGeometry(2.5, 2, 5),
+    bike: new THREE.BoxGeometry(0.5, 1.5, 2),
+    default: new THREE.BoxGeometry(2, 1, 4)
+  };
+
+  const materials = {
+    taxi: new THREE.MeshLambertMaterial({ color: 0xFFFF00 }),
+    bus: new THREE.MeshLambertMaterial({ color: 0x0000FF }),
+    lgv: new THREE.MeshLambertMaterial({ color: 0xFF0000 }),
+    bike: new THREE.MeshLambertMaterial({ color: 0x00FF00 }),
+    default: new THREE.MeshLambertMaterial({ color: 0x808080 })
+  };
+
+  const geometry = geometries[type] || geometries.default;
+  const material = materials[type] || materials.default;
+  
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function handleModelLoadError(type) {
+  console.log(`Using fallback for ${type}`);
+  const fallbackModel = createFallbackModel(type);
+  obstacleModels[type] = fallbackModel;
+  obstaclesLoadedCount++;
+  maybeInitObstaclePool();
+}
+
+function loadModels() {
+  const loader = new GLTFLoader();
+  const loadingManager = new THREE.LoadingManager();
+  
+  loadingManager.onError = function(url) {
+    console.error('Error loading:', url);
+  };
+
+  // Load user car (MTC)
+  loader.load(
+    "/MTC.glb",
+    (gltf) => {
+      try {
+        MTC = gltf.scene;
+        MTC.scale.set(2.2, 2.2, 2.2);
+        MTC.position.set(0, 1.1, 0);
+
+        MTC.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        environmentGroup.add(MTC);
+        userCarLoaded = true;
+
+        // Car physics
+        const halfExtents = new CANNON.Vec3(1, 1, 2);
+        const carShape = new CANNON.Box(halfExtents);
+        userCarBody = new CANNON.Body({
+          mass: 1000,
+          shape: carShape,
+          position: new CANNON.Vec3(0, 1.1, 0),
+          linearDamping: 0.3,
+          angularDamping: 0.6
+        });
+        physicsWorld.addBody(userCarBody);
+
+        userCarBody.addEventListener("collide", (evt) => {
+          if (evt.body && evt.body.userData && evt.body.userData.isObstacle) {
+            handleCollision();
+          }
+        });
+
+        obstaclesLoadedCount++;
+        maybeInitObstaclePool();
+      } catch (error) {
+        console.error("Error processing MTC model:", error);
+        MTC = createFallbackModel('taxi');
+        environmentGroup.add(MTC);
+        userCarLoaded = true;
+        obstaclesLoadedCount++;
+        maybeInitObstaclePool();
+      }
+    },
+    (progress) => {
+      if (progress.total > 0) {
+        console.log('Loading MTC:', (progress.loaded / progress.total * 100) + '%');
+      }
+    },
+    (error) => {
+      console.error("Error loading MTC.glb:", error);
+      MTC = createFallbackModel('taxi');
+      environmentGroup.add(MTC);
+      userCarLoaded = true;
+      obstaclesLoadedCount++;
+      maybeInitObstaclePool();
+    }
+  );
+
+  // Modified obstacle loading function
+  function loadObstacleModel(loader, url, modelKey, onLoadCallback) {
+    loader.load(
+      url,
+      (gltf) => {
+        try {
+          if (onLoadCallback) {
+            onLoadCallback(gltf.scene);
+          }
+          obstacleModels[modelKey] = gltf.scene;
+          console.log(`${modelKey} loaded successfully from ${url}`);
+          obstaclesLoadedCount++;
+          maybeInitObstaclePool();
+        } catch (error) {
+          console.error(`Error processing ${modelKey} model:`, error);
+          handleModelLoadError(modelKey);
+        }
+      },
+      (progress) => {
+        if (progress.total > 0) {
+          console.log(`Loading ${modelKey}:`, (progress.loaded / progress.total * 100) + '%');
+        }
+      },
+      (error) => {
+        console.error(`Error loading ${url}:`, error);
+        handleModelLoadError(modelKey);
+      }
+    );
+  }
+
+  // Load obstacles with proper error handling
+  loadObstacleModel(loader, "/TAXI.glb", "taxi");
+  loadObstacleModel(loader, "/Bus.glb", "bus", (gltfScene) => {
+    gltfScene.scale.set(3, 3, 3);
+  });
+  loadObstacleModel(loader, "/LGV.glb", "lgv");
+  loadObstacleModel(loader, "/Bike.glb", "bike", (gltfScene) => {
+    gltfScene.scale.set(2, 2, 2);
+    gltfScene.rotation.y = Math.PI / 2;
+  });
+}
+
 // ================== SCENE SETUP ==================
 function initScene() {
   scene = new THREE.Scene();
@@ -135,140 +292,6 @@ function initPhysics() {
   });
   groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
   physicsWorld.addBody(groundBody);
-}
-
-// ================== LOAD MODELS ==================
-async function checkModelExists(url) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const blob = await response.blob();
-    console.log(`File ${url} exists and is ${blob.size} bytes`);
-    return true;
-  } catch (error) {
-    console.error(`File ${url} is not accessible:`, error);
-    return false;
-  }
-}
-
-function loadModels() {
-  const loader = new GLTFLoader();
-  const loadingManager = new THREE.LoadingManager();
-  
-  loadingManager.onError = function(url) {
-    console.error('Error loading:', url);
-  };
-
-  // 1) User Car (MTC)
-  loader.load(
-    "/MTC.glb",
-    (gltf) => {
-      try {
-        MTC = gltf.scene;
-        MTC.scale.set(2.2, 2.2, 2.2);
-        MTC.position.set(0, 1.1, 0);
-
-        MTC.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-
-        environmentGroup.add(MTC);
-        userCarLoaded = true;
-
-        // Car physics
-        const halfExtents = new CANNON.Vec3(1, 1, 2);
-        const carShape = new CANNON.Box(halfExtents);
-        userCarBody = new CANNON.Body({
-          mass: 1000,
-          shape: carShape,
-          position: new CANNON.Vec3(0, 1.1, 0),
-          linearDamping: 0.3,
-          angularDamping: 0.6
-        });
-        physicsWorld.addBody(userCarBody);
-
-        userCarBody.addEventListener("collide", (evt) => {
-          if (evt.body && evt.body.userData && evt.body.userData.isObstacle) {
-            handleCollision();
-          }
-        });
-
-        obstaclesLoadedCount++;
-        maybeInitObstaclePool();
-      } catch (error) {
-        console.error("Error processing MTC model:", error);
-      }
-    },
-    (progress) => {
-      console.log('Loading MTC:', (progress.loaded / progress.total * 100) + '%');
-    },
-    (error) => {
-      console.error("Error loading MTC.glb:", error);
-      // Continue without the model
-      obstaclesLoadedCount++;
-      maybeInitObstaclePool();
-    }
-  );
-
-  // Modified obstacle loading function
-  function loadObstacleModel(loader, url, modelKey, onLoadCallback) {
-    const fallbackGeometry = new THREE.BoxGeometry(1, 1, 2);
-    const fallbackMaterial = new THREE.MeshLambertMaterial({ 
-      color: modelKey === 'taxi' ? 0xFFFF00 : 
-             modelKey === 'bus' ? 0x0000FF :
-             modelKey === 'lgv' ? 0xFF0000 :
-             0x00FF00 
-    });
-
-    loader.load(
-      url,
-      (gltf) => {
-        try {
-          if (onLoadCallback) {
-            onLoadCallback(gltf.scene);
-          }
-          obstacleModels[modelKey] = gltf.scene;
-          console.log(`${modelKey} loaded successfully from ${url}`);
-        } catch (error) {
-          console.error(`Error processing ${modelKey} model:`, error);
-          // Use fallback mesh if there's an error
-          const fallbackMesh = new THREE.Mesh(fallbackGeometry, fallbackMaterial);
-          obstacleModels[modelKey] = fallbackMesh;
-          console.log(`Using fallback for ${modelKey}`);
-        }
-        obstaclesLoadedCount++;
-        maybeInitObstaclePool();
-      },
-      (progress) => {
-        console.log(`Loading ${modelKey}:`, (progress.loaded / progress.total * 100) + '%');
-      },
-      (error) => {
-        console.error(`Error loading ${url}:`, error);
-        // Use fallback mesh on error
-        const fallbackMesh = new THREE.Mesh(fallbackGeometry, fallbackMaterial);
-        obstacleModels[modelKey] = fallbackMesh;
-        console.log(`Using fallback for ${modelKey}`);
-        obstaclesLoadedCount++;
-        maybeInitObstaclePool();
-      }
-    );
-  }
-
-  // Load obstacles with fallback handling
-  loadObstacleModel(loader, "/TAXI.glb", "taxi");
-  loadObstacleModel(loader, "/Bus.glb", "bus", (gltfScene) => {
-    gltfScene.scale.set(3, 3, 3);
-  });
-  loadObstacleModel(loader, "/LGV.glb", "lgv");
-  loadObstacleModel(loader, "/Bike.glb", "bike", (gltfScene) => {
-    gltfScene.scale.set(2, 2, 2);
-    gltfScene.rotation.y = Math.PI / 2;
-  });
 }
 
 // ================== ENVIRONMENT SETUP ==================
