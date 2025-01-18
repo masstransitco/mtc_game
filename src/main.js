@@ -18,7 +18,7 @@ let obstacleBodies = [];
 let obstacles = [];
 
 const obstacleTypes = ["taxi", "bus", "lgv"]; // Removed 'bike'
-const maxObstacles = 5; // Reduced from 10 for performance
+const maxObstacles = 3; // Further reduced for performance
 
 let lanePositions = [-2, 0, 2];
 
@@ -70,7 +70,7 @@ let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
 
 // Physics stepping
 let physicsDeltaTime = 0;
-const PHYSICS_STEP = 1 / 50; // 20ms per step
+const PHYSICS_STEP = 1 / 60; // Increased to 60 steps per second for smoother physics
 
 // For tracking loaded models (3 obstacles + 1 car)
 let obstaclesLoadedCount = 0;
@@ -448,7 +448,19 @@ function initObstaclePool() {
       continue;
     }
 
-    const clone = model.clone();
+    // Find the main mesh in the model
+    let mainMesh = null;
+    model.traverse((child) => {
+      if (child.isMesh && !mainMesh) {
+        mainMesh = child;
+      }
+    });
+    if (!mainMesh) {
+      console.warn(`No mesh found for obstacle type '${type}'. Skipping.`);
+      continue;
+    }
+
+    const clone = mainMesh.clone();
     clone.userData.type = type;
     clone.userData.isObstacle = true;
 
