@@ -54,7 +54,12 @@ function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB); // sky-blue
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+  camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    500
+  );
   camera.position.set(0, 5, -15);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -260,7 +265,9 @@ function updateJoystick(e) {
   joystickY = (clampedDist * Math.sin(angle)) / joystickMaxDistance;
 
   // Move the knob
-  joystickKnob.style.transform = `translate(${joystickX * joystickMaxDistance * 0.6}px, ${joystickY * joystickMaxDistance * 0.6}px)`;
+  joystickKnob.style.transform = `translate(${
+    joystickX * joystickMaxDistance * 0.6
+  }px, ${joystickY * joystickMaxDistance * 0.6}px)`;
 
   const deadZone = 0.2;
   // Pull down => +Z forward, up => -Z
