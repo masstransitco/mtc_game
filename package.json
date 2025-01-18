@@ -1,0 +1,20 @@
+{
+  "name": "car-collision-demo",
+  "version": "1.0.0",
+  "description": "A 3D car collision demo using Three.js and cannon-es",
+  "main": "src/script.js",
+  "scripts": {
+    "start": "parcel index.html",
+    "build": "parcel build index.html"
+  },
+  "dependencies": {
+    "three": "^0.152.2",
+    "cannon-es": "^0.20.0"
+  },
+  "devDependencies": {
+    "parcel": "^2.8.3"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
