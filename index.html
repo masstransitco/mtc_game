@@ -3,74 +3,137 @@
 <head>
   <meta charset="UTF-8">
   <title>Car Demo</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Optional: Link to external CSS for better styling -->
+  <style>
+    body { margin: 0; overflow: hidden; }
+
+    /* Start Screen */
+    #start-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+
+    #start-screen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+
+    #start-screen button {
+      padding: 15px 30px;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    /* Collision Indicator */
+    #collisionIndicator {
+      position: absolute;
+      top: 50px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 0, 0, 0.8);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 5px;
+      font-weight: bold;
+      display: none;
+      z-index: 5;
+    }
+
+    /* Steering Wheel */
+    #joystick-base {
+      position: absolute;
+      bottom: 20px; left: 20px;
+      width: 150px; height: 150px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 4px solid #666;
+      border-radius: 50%;
+      overflow: hidden;
+      touch-action: none;
+      z-index: 5;
+    }
+
+    #joystick-knob {
+      position: absolute;
+      width: 80px; height: 80px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) rotate(0deg);
+      touch-action: none;
+      cursor: pointer;
+    }
+
+    /* Accelerate & Brake Buttons */
+    #accelerateButton, #brakeButton {
+      position: absolute;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 16px;
+      text-align: center;
+      line-height: 80px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: none;
+      z-index: 5;
+    }
+
+    #accelerateButton {
+      bottom: 20px; right: 20px;
+      background: green;
+    }
+
+    #brakeButton {
+      bottom: 120px; right: 20px;
+      background: red;
+    }
+
+    /* Speed & RPM Indicators */
+    #speedIndicator, #rpmIndicator {
+      position: absolute;
+      top: 10px; left: 10px;
+      color: #fff;
+      font-size: 18px;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+      z-index: 5;
+    }
+  </style>
 </head>
 <body>
+
+  <!-- Start Screen -->
   <div id="start-screen">
     <h1>Car Demo</h1>
     <button id="play-button">Play</button>
   </div>
 
-  <div id="collisionIndicator" style="
-    position:absolute; 
-    top:50px; left:50%; 
-    transform:translateX(-50%);
-    background:red; color:white;
-    padding:10px; border-radius:4px;
-    display:none;">
-    Collision!
+  <!-- Collision Indicator -->
+  <div id="collisionIndicator">Collision!</div>
+
+  <!-- Steering Wheel Joystick -->
+  <div id="joystick-base">
+    <div id="joystick-knob"></div>
   </div>
 
-  <!-- Steering wheel ring -->
-  <div id="joystick-base" style="
-    position:absolute; 
-    bottom:20px; left:20px;
-    width:150px; height:150px;
-    background:rgba(0,0,0,0.4);
-    border:4px solid #666;
-    border-radius:50%;
-    overflow:hidden;
-  ">
-    <div id="joystick-knob" style="
-      position:absolute;
-      width:80px; height:80px;
-      border-radius:50%;
-      background:rgba(255,255,255,0.5);
-      top:50%; left:50%;
-      transform:translate(-50%,-50%) rotate(0deg);
-    "></div>
-  </div>
+  <!-- Accelerate & Brake Buttons -->
+  <button id="accelerateButton">Gas</button>
+  <button id="brakeButton">Brake</button>
 
-  <!-- Gas / Brake -->
-  <button id="accelerateButton" style="
-    position:absolute; bottom:20px; right:20px;
-    width:80px; height:80px;
-    border-radius:50%; 
-    background:green; color:white;
-    font-size:16px;
-  ">Gas</button>
+  <!-- Speed & RPM Indicators -->
+  <div id="speedIndicator">Speed: 0 km/h</div>
+  <div id="rpmIndicator">RPM: 1000</div>
 
-  <button id="brakeButton" style="
-    position:absolute; bottom:120px; right:20px;
-    width:80px; height:80px;
-    border-radius:50%;
-    background:red; color:white;
-    font-size:16px;
-  ">Brake</button>
-
-  <!-- Speed & RPM -->
-  <div id="speedIndicator" style="
-    position:absolute; 
-    top:10px; left:10px;
-    color:#fff; font-size:18px;
-  ">Speed: 0 km/h</div>
-
-  <div id="rpmIndicator" style="
-    position:absolute; 
-    top:40px; left:10px;
-    color:#fff; font-size:18px;
-  ">RPM: 1000</div>
-
+  <!-- Main Script -->
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
