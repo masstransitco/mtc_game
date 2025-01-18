@@ -172,7 +172,11 @@ function loadModels() {
         userCarLoaded = true;
 
         // Car physics
-        const halfExtents = new CANNON.Vec3(1, 1, 2);
+        const boundingBox = new THREE.Box3().setFromObject(MTC);
+        const size = new THREE.Vector3();
+        boundingBox.getSize(size);
+
+        const halfExtents = new CANNON.Vec3(size.x * 0.5, size.y * 0.5, size.z * 0.5);
         const carShape = new CANNON.Box(halfExtents);
 
         userCarBody = new CANNON.Body({
@@ -461,26 +465,15 @@ function initObstaclePool() {
       continue;
     }
 
-    // Find the main mesh in the model
-    let mainMesh = null;
-    model.traverse((child) => {
-      if (child.isMesh && !mainMesh) {
-        mainMesh = child;
-      }
-    });
-    if (!mainMesh) {
-      console.warn(`No mesh found for obstacle type '${type}'. Skipping.`);
-      continue;
-    }
+    // Clone the entire model.scene instead of just the main mesh
+    const clone = model.clone(true); // Deep clone to include all child meshes
 
-    const clone = mainMesh.clone();
-    clone.userData.type = type;
-    clone.userData.isObstacle = true;
-
+    // Ensure all child meshes have shadows enabled and mark as obstacles
     clone.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        child.userData.isObstacle = true;
       }
     });
 
@@ -488,7 +481,7 @@ function initObstaclePool() {
     environmentGroup.add(clone);
     obstaclePool.push(clone);
 
-    // Create Cannon body
+    // Create Cannon body for the entire cloned model
     const boundingBox = new THREE.Box3().setFromObject(clone);
     const size = new THREE.Vector3();
     boundingBox.getSize(size);
@@ -509,6 +502,9 @@ function initObstaclePool() {
     body.userData = { isObstacle: true, type };
     physicsWorld.addBody(body);
     obstacleBodies.push(body);
+
+    // Associate the physics body with the cloned mesh
+    clone.userData.physicsBody = body;
 
     body.addEventListener("collide", (evt) => {
       if (evt.body === userCarBody && !invulnerable) {
@@ -537,19 +533,22 @@ function spawnObstacle() {
   obs.visible = true;
   const lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
 
-  // Spawn behind the user car
+  // Spawn ahead of the user car to simulate approaching
   const spawnZ = userCarBody.position.z - 150 - Math.random() * 100;
 
   obs.position.set(lane, 0.2, spawnZ);
   obs.rotation.set(0, Math.PI, 0);
 
   obsBody.position.set(lane, 0.2, spawnZ);
-  obsBody.velocity.set(0, 0, 0);
+  obsBody.velocity.set(0, 0, 0); // Reset velocity
   obsBody.angularVelocity.set(0, 0, 0);
   obsBody.quaternion.setFromEuler(0, Math.PI, 0);
 
   const obstacleSpeed = 22.222 + difficultyRamp + Math.random() * 10;
   obsBody.userData.speed = obstacleSpeed;
+
+  // Set velocity towards the car (negative Z direction)
+  obsBody.velocity.set(0, 0, -obstacleSpeed);
 
   obstacles.push({ mesh: obs, body: obsBody });
 
@@ -585,7 +584,7 @@ function updateObstacles(dt) {
     // If the obstacle is too far in front
     if (body.position.z > userCarBody.position.z + 50) {
       mesh.visible = false;
-      body.position.set(0, -1000, 0);
+      body.position.set(0, -1000, 0); // Move it out of sight
       obstacles.splice(i, 1);
       continue;
     }
@@ -888,7 +887,9 @@ function updatePhysics(dt) {
 
   // Update obstacle velocities
   obstacles.forEach(({ body }) => {
-    body.velocity.z = body.userData.speed;
+    // Since obstacles have their velocity set when spawned, no need to update here
+    // This section can be used if obstacles need dynamic speed changes
+    // body.velocity.z = -body.userData.speed; // Already set during spawn
   });
 
   // Sync
