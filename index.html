@@ -3,10 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>Car Collision Demo</title>
-
   <!-- Link to our external CSS -->
-  <link rel="stylesheet" href="style.css" />
-
+  <link rel="stylesheet" href="/src/style.css" />
   <!-- Optional: Meta tags for responsiveness and better mobile support -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
@@ -23,7 +21,6 @@
     <h2>Instructions</h2>
     <p>Use the joystick or arrow keys to move!</p>
   </div>
-
   <!-- Main UI overlay: time, speed, distance, score -->
   <div id="uiOverlay">
     <div id="time">Time: 0:00.000</div>
@@ -31,20 +28,16 @@
     <div id="distance">Distance: 0.0 m</div>
     <div id="score">Score: 0</div>
   </div>
-
   <!-- Warning Indicator -->
   <div id="warningIndicator">Collision!</div>
-
   <!-- Health Bar -->
   <div id="healthBarContainer">
     <div id="healthBar"></div>
   </div>
-
   <!-- Joystick -->
   <div id="joystick-base">
     <div id="joystick-knob"></div>
   </div>
-
   <!-- Game Over Screen -->
   <div id="gameOver">
     <h2>GAME OVER</h2>
@@ -52,7 +45,6 @@
     <button id="restartButton">Restart</button>
     <a id="continueLink">Continue</a>
   </div>
-
   <!-- Game Complete Screen -->
   <div id="gameComplete">
     <h2>CONGRATULATIONS!</h2>
@@ -65,7 +57,6 @@
     <button id="restartButtonComplete">Restart</button>
     <a id="continueLinkComplete">Continue</a>
   </div>
-
   <!-- Leaderboard -->
   <div
     style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); padding:10px; border-radius:4px;"
@@ -74,8 +65,7 @@
     <ul id="leaderboardList"></ul>
     <p id="bestTime">Best Time: N/A</p>
   </div>
-
   <!-- Our main script file as an ES Module -->
-  <script type="module" src="script.js"></script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
