@@ -24,12 +24,12 @@ let physicsWorld;
 let carMesh, carBody;
 
 // Road
-let roadMesh, roadBody;
+let roadMesh; // Will be a THREE.Group or mesh hierarchy
 
 // Steering ring
 let steeringBase, steeringKnob;
-let steeringActive = false; // Declare globally
-let steeringAngle = 0; // -1..+1
+let steeringActive = false; // - indicates if user is steering
+let steeringAngle = 0;      // -1..+1 range
 
 // Buttons
 let accelButton, brakeButton;
@@ -41,14 +41,14 @@ let collisionIndicator, speedIndicator, rpmIndicator;
 // Driving constants
 const ENGINE_FORCE = 1200;
 const BRAKE_FORCE = 900;
-const MAX_FWD_SPEED = 20;
-const MAX_REV_SPEED = 5;
+const MAX_FWD_SPEED = 20; // m/s (~72 km/h)
+const MAX_REV_SPEED = 5;  // m/s (~18 km/h)
 const STEER_RESPONSE = 2;
 const STEER_MAX_ANGLE = Math.PI / 4;
 
 // Orbit
 let orbitAngle = 0;
-let orbitActiveCamera = false; // Renamed to avoid confusion
+let orbitActiveCamera = false;
 let orbitBouncingBack = false;
 let orbitAngleOnRelease = 0;
 let orbitDragStartX = 0;
@@ -82,6 +82,7 @@ function init() {
     });
   }
 
+  // Hook up collision, speed, and RPM indicators
   collisionIndicator = document.getElementById("collisionIndicator");
   speedIndicator = document.getElementById("speedIndicator");
   rpmIndicator = document.getElementById("rpmIndicator");
@@ -95,7 +96,12 @@ function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb); // Sky Blue
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+  camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    500
+  );
   camera.position.set(0, 5, 10); // Initial camera position
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -114,7 +120,7 @@ function initScene() {
   directionalLight.shadow.mapSize.height = 1024;
   scene.add(directionalLight);
 
-  // Optional: Add Axes Helper for Debugging
+  // Optional debug axes
   // const axesHelper = new THREE.AxesHelper(5);
   // scene.add(axesHelper);
 
@@ -135,7 +141,7 @@ function initPhysics() {
   physicsWorld.solver.iterations = 10;
   physicsWorld.defaultContactMaterial.friction = 0.4;
 
-  // Ground plane
+  // Ground plane (infinite)
   const groundBody = new CANNON.Body({ mass: 0 });
   const groundShape = new CANNON.Plane();
   groundBody.addShape(groundShape);
@@ -150,13 +156,15 @@ function initEnvironment() {
   const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
   const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228b22 }); // Forest Green
   const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
-  groundMesh.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
+  groundMesh.rotation.x = -Math.PI / 2; // Make horizontal
   groundMesh.receiveShadow = true;
   scene.add(groundMesh);
 }
 
 // ========== OBSTACLES ==========
-let obstaclesList = [], obstacleBodiesList = [];
+let obstaclesList = [],
+  obstacleBodiesList = [];
+
 function spawnObstacles() {
   const positions = [
     { x: 0, z: 30 },
@@ -176,7 +184,9 @@ function spawnObstacles() {
     scene.add(boxMesh);
 
     // Cannon Body
-    const boxShape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
+    const boxShape = new CANNON.Box(
+      new CANNON.Vec3(size / 2, size / 2, size / 2)
+    );
     const boxBody = new CANNON.Body({ mass: 0, shape: boxShape });
     boxBody.position.set(p.x, size / 2, p.z);
     physicsWorld.addBody(boxBody);
@@ -196,8 +206,8 @@ function loadRoad() {
   loader.load(
     "/road.glb", // Path to your road model
     (gltf) => {
-      roadMesh = gltf.scene;
-      roadMesh.scale.set(1, 1, 1); // Adjust scale as needed
+      roadMesh = gltf.scene; // A Group or hierarchy
+      roadMesh.scale.set(1, 1, 1); // Adjust as needed
       scene.add(roadMesh);
 
       // Traverse to set shadows
@@ -208,57 +218,55 @@ function loadRoad() {
         }
       });
 
-      // Add physics body
+      // Add physics
       addRoadPhysics(roadMesh);
     },
     undefined,
     (error) => {
-      console.error("An error occurred while loading the road model:", error);
+      console.error("Error loading the road model:", error);
     }
   );
 }
 
-// Function to add physics to the road
-function addRoadPhysics(roadMesh) {
-  // Ensure the road mesh has geometry
-  if (!roadMesh.geometry) {
-    console.error("Road mesh does not have geometry.");
-    return;
-  }
+// Add physics to each mesh within the road group
+function addRoadPhysics(roadGroup) {
+  // Create a single compound body for the entire road
+  const roadCompoundBody = new CANNON.Body({ mass: 0 });
 
-  // Get the geometry data
-  const geometry = roadMesh.geometry;
+  roadGroup.traverse((child) => {
+    if (child.isMesh && child.geometry) {
+      // Ensure world matrix is up to date
+      child.updateMatrixWorld(true);
 
-  // If geometry is a BufferGeometry, extract attributes
-  if (!(geometry instanceof THREE.BufferGeometry)) {
-    console.error("Road geometry is not a BufferGeometry.");
-    return;
-  }
+      // Clone the geometry so we can transform it
+      const tempGeom = child.geometry.clone();
+      // Bake in the mesh's world transform (position/rotation/scale)
+      tempGeom.applyMatrix4(child.matrixWorld);
 
-  // Convert BufferGeometry to Float32Array
-  const position = geometry.attributes.position.array;
-  const index = geometry.index.array;
+      // Convert geometry to arrays
+      const posAttr = tempGeom.attributes.position;
+      if (!posAttr) return;
 
-  // Create Trimesh
-  const roadShape = new CANNON.Trimesh(position, index);
+      const vertices = posAttr.array;
+      let indices = null;
+      if (tempGeom.index) {
+        indices = tempGeom.index.array;
+      } else {
+        // If no index, build a default one
+        indices = [];
+        for (let i = 0; i < vertices.length / 3; i++) {
+          indices.push(i);
+        }
+      }
 
-  // Create Body
-  const roadBody = new CANNON.Body({
-    mass: 0, // Static body
-    shape: roadShape,
-    position: new CANNON.Vec3(roadMesh.position.x, roadMesh.position.y, roadMesh.position.z),
-    quaternion: new CANNON.Quaternion(
-      roadMesh.quaternion.x,
-      roadMesh.quaternion.y,
-      roadMesh.quaternion.z,
-      roadMesh.quaternion.w
-    ),
+      // Create a Trimesh shape
+      const roadShape = new CANNON.Trimesh(vertices, indices);
+      roadCompoundBody.addShape(roadShape);
+    }
   });
 
-  // Add to physics world
-  physicsWorld.addBody(roadBody);
-
-  console.log("Road physics body added at position:", roadBody.position.toString());
+  // Finally add the compound road body
+  physicsWorld.addBody(roadCompoundBody);
 }
 
 // ========== LOAD CAR WITH DRACO ==========
@@ -272,10 +280,11 @@ function loadCarWithDraco() {
     "/car1.glb", // Path to your Draco-compressed GLB
     (gltf) => {
       carMesh = gltf.scene;
+      // Scale first, then compute bounding box
       carMesh.scale.set(2, 2, 2);
       scene.add(carMesh);
 
-      // Traverse to set shadows
+      // Shadows
       carMesh.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
@@ -283,56 +292,54 @@ function loadCarWithDraco() {
         }
       });
 
-      // Compute bounding box
+      // Now compute bounding box after scaling
       const bbox = new THREE.Box3().setFromObject(carMesh);
       const size = new THREE.Vector3();
       bbox.getSize(size);
-      console.log("Car bounding size:", size);
 
-      // Get minY to determine yOffset
+      // The bottom of the bounding box
       const minY = bbox.min.y;
-      console.log("Car bounding minY:", minY);
 
-      // Compute yOffset to align minY to 0
-      const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
+      // We want the car's bottom to sit at y=0
+      const halfExtents = new CANNON.Vec3(
+        size.x / 2,
+        size.y / 2,
+        size.z / 2
+      );
       const yOffset = halfExtents.y - minY;
-      console.log("Computed yOffset:", yOffset);
 
-      // Shift mesh to set minY to 0
+      // Shift the car mesh so bottom is at y=0
       carMesh.position.y += yOffset;
 
-      // Define Cannon shape based on bounding box size
+      // Create Cannon box shape matching bounding box
       const shape = new CANNON.Box(halfExtents);
 
-      // Create Cannon body
+      // Create the body
       carBody = new CANNON.Body({
-        mass: 500, // Heavier mass for better physics
+        mass: 500, // Heavier mass for more stable physics
         shape: shape,
-        position: new CANNON.Vec3(0, halfExtents.y, 0), // Place so bottom touches ground
-        linearDamping: 0.2, // Reduces velocity over time
-        angularDamping: 0.3, // Reduces rotation over time
+        position: new CANNON.Vec3(0, halfExtents.y, 0),
+        linearDamping: 0.2,  // Slight velocity damping
+        angularDamping: 0.3, // Slight rotational damping
       });
 
-      // Lock X and Z rotation to prevent tipping
+      // Prevent tipping over: only allow rotation around Y
       carBody.angularFactor.set(0, 1, 0);
 
-      // Add collision event listener
+      // Collision event
       carBody.addEventListener("collide", onCarCollision);
 
-      // Add body to physics world
+      // Add to physics
       physicsWorld.addBody(carBody);
 
-      // Sync mesh with physics body
+      // Sync orientation
       carMesh.position.copy(carBody.position);
       carMesh.quaternion.copy(carBody.quaternion);
 
-      // Rotate the car mesh to face +Z if necessary
-      // Assume model faces -Z initially; rotate 180 degrees around Y-axis
+      // If model faces -Z, rotate it 180° to face +Z
       carMesh.rotation.y = Math.PI;
       carBody.quaternion.setFromEuler(0, Math.PI, 0, "YXZ");
       carMesh.quaternion.copy(carBody.quaternion);
-
-      console.log("Car loaded & positioned");
     },
     undefined,
     (error) => {
@@ -343,32 +350,30 @@ function loadCarWithDraco() {
 }
 
 function createFallbackCar() {
-  // Fallback if Draco loading fails
+  // Basic red box if loading fails
   const geom = new THREE.BoxGeometry(2, 1, 4);
-  const mat = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red
+  const mat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
   carMesh = new THREE.Mesh(geom, mat);
   scene.add(carMesh);
 
-  // Compute bounding box
+  // Compute bounding box for fallback
   const bbox = new THREE.Box3().setFromObject(carMesh);
   const size = new THREE.Vector3();
   bbox.getSize(size);
   const minY = bbox.min.y;
-  console.log("Fallback Car bounding size:", size);
-  console.log("Fallback Car bounding minY:", minY);
 
-  // Compute yOffset to align minY to 0
-  const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
+  const halfExtents = new CANNON.Vec3(
+    size.x / 2,
+    size.y / 2,
+    size.z / 2
+  );
   const yOffset = halfExtents.y - minY;
-  console.log("Fallback Car Computed yOffset:", yOffset);
-
-  // Shift mesh to set minY to 0
   carMesh.position.y += yOffset;
 
-  // Define Cannon shape based on bounding box size
+  // Cannon shape
   const shape = new CANNON.Box(halfExtents);
 
-  // Create Cannon body
+  // Create body
   carBody = new CANNON.Body({
     mass: 500,
     shape: shape,
@@ -380,21 +385,16 @@ function createFallbackCar() {
   carBody.addEventListener("collide", onCarCollision);
   physicsWorld.addBody(carBody);
 
-  // Sync mesh with physics body
   carMesh.position.copy(carBody.position);
   carMesh.quaternion.copy(carBody.quaternion);
 
-  // Rotate the car mesh to face +Z if necessary
-  // Assume model faces -Z initially; rotate 180 degrees around Y-axis
+  // Rotate 180° if needed
   carMesh.rotation.y = Math.PI;
   carBody.quaternion.setFromEuler(0, Math.PI, 0, "YXZ");
   carMesh.quaternion.copy(carBody.quaternion);
-
-  console.log("Fallback Car loaded & positioned");
 }
 
 function onCarCollision(e) {
-  // Display collision indicator
   if (collisionIndicator) {
     collisionIndicator.style.display = "block";
     collisionIndicator.textContent = "Collision!";
@@ -402,7 +402,7 @@ function onCarCollision(e) {
       collisionIndicator.style.display = "none";
     }, 1000);
   }
-  console.log("Car collided with body:", e.body.id);
+  // console.log("Car collided with body:", e.body?.id);
 }
 
 // ========== STEERING ==========
@@ -411,10 +411,11 @@ function initSteering() {
   steeringKnob = document.getElementById("joystick-knob");
   if (!steeringBase || !steeringKnob) return;
 
-  // Event Listeners for Steering
+  // Touch + Mouse events
   steeringBase.addEventListener("touchstart", onSteerStart, { passive: false });
   steeringBase.addEventListener("touchmove", onSteerMove, { passive: false });
   steeringBase.addEventListener("touchend", onSteerEnd, { passive: false });
+
   steeringBase.addEventListener("mousedown", onSteerStart, { passive: false });
   document.addEventListener("mousemove", onSteerMove, { passive: false });
   document.addEventListener("mouseup", onSteerEnd, { passive: false });
@@ -442,6 +443,7 @@ function onSteerEnd(e) {
   // Animate knob back to center
   steeringKnob.style.transition = "transform 0.3s ease";
   steeringKnob.style.transform = "translate(-50%, -50%) rotate(0deg)";
+
   setTimeout(() => {
     steeringKnob.style.transition = "none";
     steeringAngle = 0;
@@ -459,19 +461,22 @@ function updateSteer(e) {
     clientY = e.clientY;
   }
 
+  // Center of the steering base
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
+
   const dx = clientX - cx;
   const dy = clientY - cy;
 
-  let angle = Math.atan2(dy, dx); // -π..π
+  // Calculate angle, clamp to -180..180 deg
+  let angle = Math.atan2(dy, dx);
   let angleDeg = THREE.MathUtils.radToDeg(angle);
   angleDeg = THREE.MathUtils.clamp(angleDeg, -180, 180);
 
-  // Rotate the knob
+  // Set knob rotation
   steeringKnob.style.transform = `translate(-50%, -50%) rotate(${angleDeg}deg)`;
 
-  // Normalize steering angle between -1 and +1
+  // Normalize steering angle between -1..+1
   steeringAngle = angleDeg / 180;
 }
 
@@ -480,48 +485,54 @@ function initButtons() {
   accelButton = document.getElementById("accelerateButton");
   brakeButton = document.getElementById("brakeButton");
 
-  // Accelerate Button Event Listeners
   if (accelButton) {
     accelButton.addEventListener("mousedown", () => {
       accelInput = true;
-      console.log("Gas pressed");
     });
     accelButton.addEventListener("mouseup", () => {
       accelInput = false;
-      console.log("Gas released");
     });
-    accelButton.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      accelInput = true;
-      console.log("Gas pressed (touch)");
-    }, { passive: false });
-    accelButton.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      accelInput = false;
-      console.log("Gas released (touch)");
-    }, { passive: false });
+    accelButton.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        accelInput = true;
+      },
+      { passive: false }
+    );
+    accelButton.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        accelInput = false;
+      },
+      { passive: false }
+    );
   }
 
-  // Brake Button Event Listeners
   if (brakeButton) {
     brakeButton.addEventListener("mousedown", () => {
       brakeInput = true;
-      console.log("Brake pressed");
     });
     brakeButton.addEventListener("mouseup", () => {
       brakeInput = false;
-      console.log("Brake released");
     });
-    brakeButton.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      brakeInput = true;
-      console.log("Brake pressed (touch)");
-    }, { passive: false });
-    brakeButton.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      brakeInput = false;
-      console.log("Brake released (touch)");
-    }, { passive: false });
+    brakeButton.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        brakeInput = true;
+      },
+      { passive: false }
+    );
+    brakeButton.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        brakeInput = false;
+      },
+      { passive: false }
+    );
   }
 }
 
@@ -532,13 +543,18 @@ function initCameraOrbit() {
 }
 
 function orbitStart(e) {
-  const ignoreIds = ["joystick-base", "joystick-knob", "accelerateButton", "brakeButton"];
+  // Ignore UI elements
+  const ignoreIds = [
+    "joystick-base",
+    "joystick-knob",
+    "accelerateButton",
+    "brakeButton",
+  ];
   if (ignoreIds.includes(e.target.id)) return;
 
   e.preventDefault();
   orbitActiveCamera = true;
   orbitBouncingBack = false;
-
   orbitDragStartX = e.clientX || (e.touches && e.touches[0].clientX);
 
   document.addEventListener("mousemove", orbitMove, false);
@@ -552,7 +568,9 @@ function orbitMove(e) {
   const clientX = e.clientX || (e.touches && e.touches[0].clientX);
   const deltaX = clientX - orbitDragStartX;
   orbitDragStartX = clientX;
-  orbitAngle += deltaX * -0.3 * (Math.PI / 180); // Sensitivity factor
+
+  // Adjust sensitivity as desired
+  orbitAngle += deltaX * -0.3 * (Math.PI / 180);
 }
 
 function orbitEnd(e) {
@@ -588,73 +606,60 @@ function animate() {
 }
 
 function updateObstacles() {
-  // Static obstacles; no need to update positions
+  // These are static, so no ongoing update needed
 }
 
 // ========== CAR LOGIC ==========
 function updateCarLogic(dt) {
   if (!carBody) return;
 
-  // 1. Steering: Adjust heading based on steering angle
+  // 1. Steering
   const currentHeading = getBodyYRot(carBody);
   const targetHeading = steeringAngle * STEER_MAX_ANGLE;
   const diff = targetHeading - currentHeading;
+  // Clamp turning speed
   const turn = THREE.MathUtils.clamp(diff, -STEER_RESPONSE * dt, STEER_RESPONSE * dt);
   const newHeading = currentHeading + turn;
   setBodyYRot(carBody, newHeading);
 
-  // 2. Apply Forces for Acceleration & Braking
-  // Define forward direction based on current heading
-  const forwardVec = new CANNON.Vec3(-Math.sin(newHeading), 0, -Math.cos(newHeading)); // Adjusted for rotation
-
-  // Calculate current speed along forward direction
+  // 2. Forces for Acceleration & Braking
+  const forwardVec = new CANNON.Vec3(
+    -Math.sin(newHeading),
+    0,
+    -Math.cos(newHeading)
+  );
   const vel = carBody.velocity.clone();
   const forwardSpeed = vel.dot(forwardVec);
 
-  // Apply Engine Force
-  if (accelInput) {
-    if (forwardSpeed < MAX_FWD_SPEED) {
-      const force = forwardVec.scale(ENGINE_FORCE);
-      carBody.applyForce(force, carBody.position);
-      console.log("Accelerating. Applied force:", force.toString());
-    }
+  // Accelerate if under max forward speed
+  if (accelInput && forwardSpeed < MAX_FWD_SPEED) {
+    const force = forwardVec.scale(ENGINE_FORCE);
+    carBody.applyForce(force, carBody.position);
   }
 
-  // Apply Brake Force
-  if (brakeInput) {
-    if (forwardSpeed > -MAX_REV_SPEED) {
-      const brakeForce = forwardVec.scale(-BRAKE_FORCE);
-      carBody.applyForce(brakeForce, carBody.position);
-      console.log("Braking. Applied force:", brakeForce.toString());
-    }
+  // Brake / Reverse if above max reverse speed
+  if (brakeInput && forwardSpeed > -MAX_REV_SPEED) {
+    const brakeForce = forwardVec.scale(-BRAKE_FORCE);
+    carBody.applyForce(brakeForce, carBody.position);
   }
 
-  // 3. Limit Maximum Speed (optional)
-  const speedLimit = 50; // m/s (~180 km/h)
-  const currentSpeed = carBody.velocity.length();
-  if (currentSpeed > speedLimit) {
-    carBody.velocity.scale(speedLimit / currentSpeed, carBody.velocity);
-  }
+  // 3. Sync Mesh with Body
+  carMesh.position.copy(carBody.position);
+  carMesh.quaternion.copy(carBody.quaternion);
 
-  // 4. Sync Three.js Mesh with Cannon.js Body
-  if (carMesh) {
-    carMesh.position.copy(carBody.position);
-    carMesh.quaternion.copy(carBody.quaternion);
-  }
-
-  // 5. Update Speed and RPM Indicators
+  // 4. Update Speed and RPM Indicators
   updateSpeedAndRPM(forwardSpeed);
 }
 
 function updateSpeedAndRPM(forwardSpeed) {
-  // Convert speed to km/h
+  // Convert to km/h
   const speedKmh = Math.abs(forwardSpeed) * 3.6;
   if (speedIndicator) {
     speedIndicator.textContent = `Speed: ${speedKmh.toFixed(1)} km/h`;
   }
 
-  // Simple RPM calculation
-  let rpm = 800 + 200 * Math.abs(forwardSpeed); // Adjust factors as needed
+  // Simple RPM logic
+  let rpm = 800 + 200 * Math.abs(forwardSpeed);
   rpm = Math.floor(rpm);
   if (rpmIndicator) {
     rpmIndicator.textContent = `RPM: ${rpm}`;
@@ -665,23 +670,24 @@ function updateSpeedAndRPM(forwardSpeed) {
 function updateCamera(dt) {
   if (!carBody) return;
 
-  // Handle bounce-back if user has stopped orbiting
+  // Bounce-back if user stopped orbiting
   if (!orbitActiveCamera && orbitBouncingBack) {
-    const t = (Date.now() - orbitLerpStart) / 1000; // seconds elapsed
-    const bounceDuration = 1; // seconds
+    const t = (Date.now() - orbitLerpStart) / 1000; // sec
+    const bounceDuration = 1; // sec
 
     if (t >= bounceDuration) {
       orbitAngle = 0;
       orbitBouncingBack = false;
     } else {
-      const ratio = 1 - Math.pow(1 - t / bounceDuration, 3); // Ease out
+      // Ease out
+      const ratio = 1 - Math.pow(1 - t / bounceDuration, 3);
       orbitAngle = THREE.MathUtils.lerp(orbitAngleOnRelease, 0, ratio);
     }
   }
 
-  // Calculate camera position based on orbit angle
   const heading = getBodyYRot(carBody);
-  const baseAngle = heading + Math.PI; // Behind the car
+  // Position the camera behind the car
+  const baseAngle = heading + Math.PI;
   const camAngle = baseAngle + orbitAngle;
 
   const carPos = carBody.position;
