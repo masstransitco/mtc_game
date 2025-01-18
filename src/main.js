@@ -7,12 +7,12 @@ import * as CANNON from 'cannon-es';
 // ================== GLOBALS ==================
 let scene, camera, renderer;
 let environmentGroup;
-let MTC; // user's car
+let MTC; // User's car mesh
 let userCarBody;
 let userCarLoaded = false;
 
 let physicsWorld;
-let obstacleModels = {}; // { taxi, bus, lgv, bike }
+let obstacleModels = {}; // Loaded obstacle models: { taxi, bus, lgv, bike }
 let obstaclePool = [];
 let obstacleBodies = [];
 let obstacles = [];
@@ -35,7 +35,7 @@ const maxVelocity = 44.444; // 160 km/h
 
 // Collisions, game states
 let collisionCount = 0;
-let maxCollisions = 5; // ALLOW 5 collisions before game over
+let maxCollisions = 5; // Allow 5 collisions before game over
 let gameOver = false;
 let gameCompleted = false;
 
@@ -48,7 +48,8 @@ let startTime = 0;
 let previousTime = 0;
 let animationId;
 
-let obstacleFrequency = 2; // spawn every 2 seconds
+// Obstacle spawning
+let obstacleFrequency = 2; // Spawn every 2 seconds
 let obstacleTimer = 0;
 let difficultyRamp = 0;
 const completionDistance = 2000;
@@ -77,7 +78,7 @@ const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1;
 
 // ================== CRITICAL FUNCTIONS ==================
 
-// This needs to be defined before any loading functions
+// Initialize obstacle pool once all models are loaded
 function maybeInitObstaclePool() {
   if (obstaclesLoadedCount >= TOTAL_MODELS_TO_LOAD) {
     console.log("All models loaded. Initializing obstacle pool...");
@@ -85,6 +86,7 @@ function maybeInitObstaclePool() {
   }
 }
 
+// Create fallback models in case of loading errors
 function createFallbackModel(type) {
   const geometries = {
     taxi: new THREE.BoxGeometry(2, 1, 4),
@@ -111,6 +113,7 @@ function createFallbackModel(type) {
   return mesh;
 }
 
+// Handle model loading errors by using fallback models
 function handleModelLoadError(type) {
   console.log(`Using fallback for ${type}`);
   const fallbackModel = createFallbackModel(type);
@@ -119,6 +122,7 @@ function handleModelLoadError(type) {
   maybeInitObstaclePool();
 }
 
+// Enhanced model loading with error handling and fallbacks
 function loadModels() {
   const loader = new GLTFLoader();
   const loadingManager = new THREE.LoadingManager();
@@ -177,7 +181,7 @@ function loadModels() {
     },
     (progress) => {
       if (progress.total > 0) {
-        console.log('Loading MTC:', (progress.loaded / progress.total * 100) + '%');
+        console.log('Loading MTC:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
       }
     },
     (error) => {
@@ -201,16 +205,17 @@ function loadModels() {
           }
           obstacleModels[modelKey] = gltf.scene;
           console.log(`${modelKey} loaded successfully from ${url}`);
-          obstaclesLoadedCount++;
-          maybeInitObstaclePool();
         } catch (error) {
           console.error(`Error processing ${modelKey} model:`, error);
           handleModelLoadError(modelKey);
+          return;
         }
+        obstaclesLoadedCount++;
+        maybeInitObstaclePool();
       },
       (progress) => {
         if (progress.total > 0) {
-          console.log(`Loading ${modelKey}:`, (progress.loaded / progress.total * 100) + '%');
+          console.log(`Loading ${modelKey}: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
         }
       },
       (error) => {
@@ -425,7 +430,10 @@ function initObstaclePool() {
   for (let i = 0; i < maxObstacles; i++) {
     const type = obstacleTypes[i % obstacleTypes.length];
     const model = obstacleModels[type];
-    if (!model) continue;
+    if (!model) {
+      console.warn(`Model for obstacle type '${type}' is not loaded. Skipping.`);
+      continue;
+    }
 
     const clone = model.clone();
     clone.userData.type = type;
@@ -468,6 +476,7 @@ function initObstaclePool() {
   console.log("Obstacle pool created:", obstaclePool.length);
 }
 
+// Get the index of the first available (invisible) obstacle in the pool
 function getObstacleFromPool() {
   for (let i = 0; i < obstaclePool.length; i++) {
     if (!obstaclePool[i].visible) {
@@ -487,10 +496,15 @@ function spawnObstacle() {
   const obs = obstaclePool[poolIndex];
   const obsBody = obstacleBodies[poolIndex];
 
+  if (!obs || !obsBody) {
+    console.warn(`Obstacle or its physics body at index ${poolIndex} is undefined.`);
+    return;
+  }
+
   obs.visible = true;
   const lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
 
-  // Increase offset so obstacles spawn further behind the player
+  // Ensure obstacles spawn sufficiently behind the user car to prevent immediate collisions
   const spawnZ = userCarBody.position.z - 150 - Math.random() * 100;
 
   obs.position.set(lane, 0.2, spawnZ);
@@ -515,7 +529,14 @@ function updateObstacles(dt) {
   frustum.setFromProjectionMatrix(projScreenMatrix);
 
   for (let i = obstacles.length - 1; i >= 0; i--) {
-    const { mesh, body } = obstacles[i];
+    const obstacle = obstacles[i];
+    if (!obstacle || !obstacle.mesh || !obstacle.body) {
+      console.warn(`Obstacle at index ${i} is missing mesh or body.`);
+      obstacles.splice(i, 1);
+      continue;
+    }
+
+    const { mesh, body } = obstacle;
 
     // Remove if they pass a certain threshold in front
     if (body.position.z > userCarBody.position.z + 50) {
@@ -556,7 +577,7 @@ function handleCollision() {
 // Update the health bar from 100% down to 0% as collisions happen
 function updateHealthBar() {
   const healthLeft = maxCollisions - collisionCount;
-  const percentage = (healthLeft / maxCollisions) * 100;
+  const percentage = Math.max((healthLeft / maxCollisions) * 100, 0);
   const bar = document.getElementById("healthBar");
   if (bar) {
     bar.style.width = percentage + "%";
@@ -566,8 +587,14 @@ function updateHealthBar() {
 // ================== WARNING INDICATOR ==================
 function displayWarningIndicator() {
   const indicator = document.getElementById("warningIndicator");
-  indicator.style.display = "block";
-  indicator.classList.add("flashing");
+  if (indicator) {
+    indicator.style.display = "block";
+    indicator.classList.add("flashing");
+    // Remove the flashing class after the animation completes to allow re-triggering
+    indicator.addEventListener('animationend', () => {
+      indicator.classList.remove("flashing");
+    }, { once: true });
+  }
 }
 
 // ================== GAME OVER ==================
@@ -645,7 +672,7 @@ function initJoystick() {
 
   joystickMaxDistance = joystickBase.offsetWidth / 2;
 
-  // Clean up old listeners
+  // Clean up old listeners to prevent multiple bindings
   joystickBase.removeEventListener("touchstart", onJoystickStart);
   joystickBase.removeEventListener("touchmove", onJoystickMove);
   joystickBase.removeEventListener("touchend", onJoystickEnd);
@@ -805,7 +832,10 @@ function updatePhysics(dt) {
 
 function updateVisuals(dt) {
   elapsedTime = (Date.now() - startTime) / 1000;
-  document.getElementById("time").textContent = `Time: ${formatTime(elapsedTime)}`;
+  const timeElement = document.getElementById("time");
+  if (timeElement) {
+    timeElement.textContent = `Time: ${formatTime(elapsedTime)}`;
+  }
 
   difficultyRamp = elapsedTime * 0.2;
 
@@ -814,8 +844,15 @@ function updateVisuals(dt) {
   }
   scoreboard = Math.floor(distance);
 
-  document.getElementById("distance").textContent = `Distance: ${distance.toFixed(1)} m`;
-  document.getElementById("score").textContent = `Score: ${scoreboard}`;
+  const distanceElement = document.getElementById("distance");
+  if (distanceElement) {
+    distanceElement.textContent = `Distance: ${distance.toFixed(1)} m`;
+  }
+
+  const scoreElement = document.getElementById("score");
+  if (scoreElement) {
+    scoreElement.textContent = `Score: ${scoreboard}`;
+  }
 
   if (distance >= completionDistance) {
     handleGameCompletion();
@@ -825,7 +862,10 @@ function updateVisuals(dt) {
   // Speedometer
   if (userCarBody) {
     const speedKmh = Math.abs(userCarBody.velocity.length()) * 3.6;
-    document.getElementById("speedometer").textContent = `${speedKmh.toFixed(0)} km/h`;
+    const speedometer = document.getElementById("speedometer");
+    if (speedometer) {
+      speedometer.textContent = `${speedKmh.toFixed(0)} km/h`;
+    }
   }
 
   // Car tilt
@@ -836,6 +876,8 @@ function updateVisuals(dt) {
       MTC.rotation.z = -0.1;
     } else {
       MTC.rotation.z *= 0.9;
+      // Clamp rotation to prevent excessive tilting
+      MTC.rotation.z = THREE.MathUtils.clamp(MTC.rotation.z, -0.2, 0.2);
     }
   }
 
@@ -849,9 +891,10 @@ function syncMeshesToBodies() {
   }
 
   obstaclePool.forEach((obs, i) => {
-    if (!obs.visible) return;
-    obs.position.copy(obstacleBodies[i].position);
-    obs.quaternion.copy(obstacleBodies[i].quaternion);
+    const body = obstacleBodies[i];
+    if (!obs.visible || !body) return;
+    obs.position.copy(body.position);
+    obs.quaternion.copy(body.quaternion);
   });
 }
 
@@ -879,27 +922,40 @@ function updateLeaderboard() {
     position = leaderboard.length;
   }
   if (position !== null) {
-    document.getElementById("nameInputContainer").style.display = "block";
+    const nameInputContainer = document.getElementById("nameInputContainer");
+    if (nameInputContainer) {
+      nameInputContainer.style.display = "block";
+    }
+
     let submitBtn = document.getElementById("submitNameButton");
-    // ensure previous events are cleared by cloning
-    submitBtn.replaceWith(submitBtn.cloneNode(true));
-    submitBtn = document.getElementById("submitNameButton");
-    submitBtn.addEventListener("click", () => {
-      const name = document.getElementById("nameInput").value.trim() || "Anonymous";
-      leaderboard.splice(position, 0, {
-        name,
-        time: elapsedTime,
-        collisions: totalCollisions,
-        score: scoreboard,
-      });
-      if (leaderboard.length > 10) {
-        leaderboard.pop();
+    if (submitBtn) {
+      // Ensure previous events are cleared by cloning
+      submitBtn.replaceWith(submitBtn.cloneNode(true));
+      submitBtn = document.getElementById("submitNameButton");
+      if (submitBtn) {
+        submitBtn.addEventListener("click", () => {
+          const name = document.getElementById("nameInput").value.trim() || "Anonymous";
+          leaderboard.splice(position, 0, {
+            name,
+            time: elapsedTime,
+            collisions: totalCollisions,
+            score: scoreboard,
+          });
+          if (leaderboard.length > 10) {
+            leaderboard.pop();
+          }
+          localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
+          displayLeaderboard();
+          if (nameInputContainer) {
+            nameInputContainer.style.display = "none";
+          }
+          const gameComplete = document.getElementById("gameComplete");
+          if (gameComplete) {
+            gameComplete.style.display = "none";
+          }
+        });
       }
-      localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
-      displayLeaderboard();
-      document.getElementById("nameInputContainer").style.display = "none";
-      document.getElementById("gameComplete").style.display = "none";
-    });
+    }
   } else {
     displayLeaderboard();
   }
@@ -908,6 +964,7 @@ function updateLeaderboard() {
 
 function displayLeaderboard() {
   const list = document.getElementById("leaderboardList");
+  if (!list) return;
   list.innerHTML = "";
   leaderboard.forEach((entry, index) => {
     const li = document.createElement("li");
@@ -924,19 +981,24 @@ function displayLeaderboard() {
 }
 
 function updateBestTimeDisplay() {
+  const bestTimeElement = document.getElementById("bestTime");
+  if (!bestTimeElement) return;
   if (leaderboard.length > 0) {
-    document.getElementById("bestTime").textContent =
+    bestTimeElement.textContent =
       `Best Time: ${formatTime(leaderboard[0].time)}`;
   } else {
-    document.getElementById("bestTime").textContent = "Best Time: N/A";
+    bestTimeElement.textContent = "Best Time: N/A";
   }
 }
 
 // ================== GAME CONTROLS ==================
 function startGame() {
   // Hide start/instructions
-  document.getElementById("start-screen").style.display = "none";
-  document.getElementById("instructions").style.display = "none";
+  const startScreen = document.getElementById("start-screen");
+  const instructions = document.getElementById("instructions");
+  if (startScreen) startScreen.style.display = "none";
+  if (instructions) instructions.style.display = "none";
+
   // Begin a short camera animation, then reset game and animate
   startCameraAnimation();
 }
@@ -944,7 +1006,7 @@ function startGame() {
 function startCameraAnimation() {
   const startPos = new THREE.Vector3(0, 30, 100);
   const endPos = new THREE.Vector3(0, 5, 15);
-  const duration = 1500;
+  const duration = 1500; // in milliseconds
   const camStart = Date.now();
 
   camera.position.copy(startPos);
@@ -975,11 +1037,16 @@ function resetGameState() {
   gameCompleted = false;
   orbitActive = false;
 
-  document.getElementById("gameOver").style.display = "none";
-  document.getElementById("gameComplete").style.display = "none";
-  document.getElementById("warningIndicator").style.display = "none";
-  document.getElementById("warningIndicator").classList.remove("flashing");
-  document.getElementById("warningIndicator").style.animation = "";
+  const gameOverElement = document.getElementById("gameOver");
+  const gameCompleteElement = document.getElementById("gameComplete");
+  const warningIndicator = document.getElementById("warningIndicator");
+  if (gameOverElement) gameOverElement.style.display = "none";
+  if (gameCompleteElement) gameCompleteElement.style.display = "none";
+  if (warningIndicator) {
+    warningIndicator.style.display = "none";
+    warningIndicator.classList.remove("flashing");
+    warningIndicator.style.animation = "";
+  }
 
   // Reset the health bar to 100%
   updateHealthBar(); // sets it to full
@@ -1023,19 +1090,28 @@ function formatTime(sec) {
 function init() {
   initScene();
   initPhysics();
-  loadModels(); // load .glb models (make sure filenames match)
+  loadModels(); // Load .glb models (ensure filenames match)
   setupEnvironment();
   initJoystick();
 
   // Hook up UI
-  document.getElementById("play-button").addEventListener("click", startGame);
-  document.getElementById("restartButton").addEventListener("click", resetGameState);
-  document.getElementById("continueLink").addEventListener("click", () => {
-    window.location.href = "https://air.zone"; // or your desired link
+  const playButton = document.getElementById("play-button");
+  const restartButtons = document.querySelectorAll("#restartButton, #restartButtonComplete");
+  const continueLinks = document.querySelectorAll("#continueLink, #continueLinkComplete");
+  
+  if (playButton) playButton.addEventListener("click", startGame);
+  
+  restartButtons.forEach(btn => {
+    if (btn) btn.addEventListener("click", () => {
+      resetGameState();
+      animate(); // Restart the animation loop
+    });
   });
-  document.getElementById("restartButtonComplete").addEventListener("click", resetGameState);
-  document.getElementById("continueLinkComplete").addEventListener("click", () => {
-    window.location.href = "https://air.zone"; // or your desired link
+
+  continueLinks.forEach(link => {
+    if (link) link.addEventListener("click", () => {
+      window.location.href = "https://air.zone"; // or your desired link
+    });
   });
 
   // Show initial leaderboard if any
