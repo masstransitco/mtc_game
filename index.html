@@ -2,70 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>Car Game Demo</title>
+  <title>Car Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <link rel="stylesheet" href="/src/style.css"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
 
   <!-- Start Screen -->
   <div id="start-screen">
-    <h1>Car Driving Demo</h1>
+    <h1>Car Demo</h1>
     <button id="play-button">Play</button>
   </div>
 
   <!-- Collision Indicator -->
   <div id="collisionIndicator" style="
-    display:none;
-    position:absolute;
+    display:none; position:absolute; 
     top:50px; left:50%;
     transform:translateX(-50%);
     background:#f00; 
     color:#fff; 
     padding:10px; 
     border-radius:4px;
-  ">
-    Collision!
-  </div>
+    font-weight:bold;
+  ">Collision!</div>
 
-  <!-- Joystick for steering left/right -->
+  <!-- Steering Wheel Joystick -->
   <div id="joystick-base" style="
     position:absolute; 
     bottom:20px; left:20px;
-    width:100px; height:100px; 
-    background:rgba(0,0,0,0.3);
+    width:150px; height:150px;
+    background:rgba(0,0,0,0.4);
+    border:4px solid #666;
     border-radius:50%;
   ">
     <div id="joystick-knob" style="
-      width:50px; height:50px; 
+      position:absolute;
+      width:50px; height:50px;
       background:rgba(255,255,255,0.5);
       border-radius:50%;
-      position:absolute;
-      top:25px; left:25px;
-      transform:translate(0,0);
+      top:50%; left:50%;
+      transform:translate(-50%,-50%) rotate(0deg);
     "></div>
   </div>
 
   <!-- Accelerate & Brake Buttons -->
   <button id="accelerateButton" style="
     position:absolute;
-    bottom:80px; right:20px;
+    bottom:20px; right:20px;
     width:80px; height:80px;
-    border-radius:50%;
+    border-radius:50%; 
     background:green;
-    color:#fff; font-size:16px;
+    color:#fff; 
+    font-size:16px;
   ">Gas</button>
 
   <button id="brakeButton" style="
     position:absolute;
-    bottom:180px; right:20px;
+    bottom:120px; right:20px;
     width:80px; height:80px;
-    border-radius:50%;
+    border-radius:50%; 
     background:red;
-    color:#fff; font-size:16px;
+    color:#fff;
+    font-size:16px;
   ">Brake</button>
 
-  <!-- Our main script -->
+  <!-- Speed & RPM Indicators -->
+  <div id="speedIndicator" style="
+    position:absolute; 
+    top:10px; left:10px;
+    color:#fff; 
+    font-size:18px;
+  ">Speed: 0 km/h</div>
+
+  <div id="rpmIndicator" style="
+    position:absolute; 
+    top:40px; left:10px;
+    color:#fff; 
+    font-size:18px;
+  ">RPM: 1000</div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
