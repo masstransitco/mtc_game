@@ -1,6 +1,7 @@
 /*****************************************************
  * main.js
  * - Ensures Car Sits on Ground using Bounding Box
+ * - Adds a Road with Bends and Elevation
  * - Steering Wheel Ring Design
  * - Applies Forces for Acceleration & Braking
  * - Displays RPM & Speed
@@ -21,6 +22,9 @@ let physicsWorld;
 
 // Car
 let carMesh, carBody;
+
+// Road
+let roadMesh, roadBody;
 
 // Steering ring
 let steeringBase, steeringKnob;
@@ -62,6 +66,7 @@ function init() {
   initPhysics();
   initEnvironment();
   spawnObstacles();
+  loadRoad();
   loadCarWithDraco();
 
   initSteering();
@@ -151,7 +156,7 @@ function initEnvironment() {
 }
 
 // ========== OBSTACLES ==========
-let obstaclesList = [], obstacleBodies = [];
+let obstaclesList = [], obstacleBodiesList = [];
 function spawnObstacles() {
   const positions = [
     { x: 0, z: 30 },
@@ -160,32 +165,107 @@ function spawnObstacles() {
     { x: 5, z: 90 },
     { x: -5, z: 110 },
   ];
-  for (let pos of positions) {
+  for (let p of positions) {
     const size = 2;
     const boxGeometry = new THREE.BoxGeometry(size, size, size);
     const boxMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 }); // Gray
     const boxMesh = new THREE.Mesh(boxGeometry, boxMaterial);
     boxMesh.castShadow = true;
     boxMesh.receiveShadow = true;
-    boxMesh.position.set(pos.x, size / 2, pos.z);
+    boxMesh.position.set(p.x, size / 2, p.z);
     scene.add(boxMesh);
 
     // Cannon Body
     const boxShape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
     const boxBody = new CANNON.Body({ mass: 0, shape: boxShape });
-    boxBody.position.set(pos.x, size / 2, pos.z);
+    boxBody.position.set(p.x, size / 2, p.z);
     physicsWorld.addBody(boxBody);
 
     obstaclesList.push(boxMesh);
-    obstacleBodies.push(boxBody);
+    obstacleBodiesList.push(boxBody);
   }
+}
+
+// ========== LOAD ROAD ==========
+function loadRoad() {
+  const loader = new GLTFLoader();
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath("/draco/");
+  loader.setDRACOLoader(dracoLoader);
+
+  loader.load(
+    "/road.glb", // Path to your road model
+    (gltf) => {
+      roadMesh = gltf.scene;
+      roadMesh.scale.set(1, 1, 1); // Adjust scale as needed
+      scene.add(roadMesh);
+
+      // Traverse to set shadows
+      roadMesh.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      // Add physics body
+      addRoadPhysics(roadMesh);
+    },
+    undefined,
+    (error) => {
+      console.error("An error occurred while loading the road model:", error);
+    }
+  );
+}
+
+// Function to add physics to the road
+function addRoadPhysics(roadMesh) {
+  // Ensure the road mesh has geometry
+  if (!roadMesh.geometry) {
+    console.error("Road mesh does not have geometry.");
+    return;
+  }
+
+  // Get the geometry data
+  const geometry = roadMesh.geometry;
+
+  // If geometry is a BufferGeometry, extract attributes
+  if (!(geometry instanceof THREE.BufferGeometry)) {
+    console.error("Road geometry is not a BufferGeometry.");
+    return;
+  }
+
+  // Convert BufferGeometry to Float32Array
+  const position = geometry.attributes.position.array;
+  const index = geometry.index.array;
+
+  // Create Trimesh
+  const roadShape = new CANNON.Trimesh(position, index);
+
+  // Create Body
+  const roadBody = new CANNON.Body({
+    mass: 0, // Static body
+    shape: roadShape,
+    position: new CANNON.Vec3(roadMesh.position.x, roadMesh.position.y, roadMesh.position.z),
+    quaternion: new CANNON.Quaternion(
+      roadMesh.quaternion.x,
+      roadMesh.quaternion.y,
+      roadMesh.quaternion.z,
+      roadMesh.quaternion.w
+    ),
+  });
+
+  // Add to physics world
+  physicsWorld.addBody(roadBody);
+
+  console.log("Road physics body added at position:", roadBody.position.toString());
 }
 
 // ========== LOAD CAR WITH DRACO ==========
 function loadCarWithDraco() {
   const loader = new GLTFLoader();
   const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath("/draco/"); // Ensure Draco decoder files are here
+  dracoLoader.setDecoderPath("/draco/");
   loader.setDRACOLoader(dracoLoader);
 
   loader.load(
