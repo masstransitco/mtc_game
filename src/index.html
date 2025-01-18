@@ -1,82 +1,80 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Car Collision Demo</title>
-
-  <!-- Link to our external CSS -->
-  <link rel="stylesheet" href="style.css" />
-
-  <!-- Optional: Meta tags for responsiveness and better mobile support -->
+  <meta charset="UTF-8">
+  <title>Car Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-  <!-- Start Screen UI -->
+
+  <!-- Start Screen -->
   <div id="start-screen">
-    <h1>Car Collision Demo</h1>
-    <p>Press Play to start!</p>
+    <h1>Car Demo</h1>
     <button id="play-button">Play</button>
   </div>
-  
-  <!-- Instructions Overlay -->
-  <div id="instructions">
-    <h2>Instructions</h2>
-    <p>Use the joystick or arrow keys to move!</p>
+
+  <!-- Collision Indicator -->
+  <div id="collisionIndicator" style="
+    position:absolute; 
+    top:50px; left:50%; 
+    transform:translateX(-50%);
+    background:red; color:white;
+    padding:10px; border-radius:4px;
+    display:none;">
+    Collision!
   </div>
 
-  <!-- Main UI overlay: time, speed, distance, score -->
-  <div id="uiOverlay">
-    <div id="time">Time: 0:00.000</div>
-    <div id="speedometer">0 km/h</div>
-    <div id="distance">Distance: 0.0 m</div>
-    <div id="score">Score: 0</div>
+  <!-- Steering Wheel Joystick -->
+  <div id="joystick-base" style="
+    position:absolute;
+    bottom:20px; left:20px;
+    width:150px; height:150px;
+    background:rgba(0,0,0,0.4);
+    border:4px solid #666;
+    border-radius:50%;
+  ">
+    <div id="joystick-knob" style="
+      position:absolute;
+      width:50px; height:50px;
+      background:rgba(255,255,255,0.5);
+      border-radius:50%;
+      top:50%; left:50%;
+      transform:translate(-50%,-50%) rotate(0deg);
+    "></div>
   </div>
 
-  <!-- Warning Indicator -->
-  <div id="warningIndicator">Collision!</div>
+  <!-- Accelerate & Brake Buttons -->
+  <button id="accelerateButton" style="
+    position:absolute; bottom:20px; right:20px;
+    width:80px; height:80px;
+    border-radius:50%; 
+    background:green; color:white;
+    font-size:16px;
+  ">Gas</button>
 
-  <!-- Health Bar -->
-  <div id="healthBarContainer">
-    <div id="healthBar"></div>
-  </div>
+  <button id="brakeButton" style="
+    position:absolute; bottom:120px; right:20px;
+    width:80px; height:80px;
+    border-radius:50%;
+    background:red; color:white;
+    font-size:16px;
+  ">Brake</button>
 
-  <!-- Joystick -->
-  <div id="joystick-base">
-    <div id="joystick-knob"></div>
-  </div>
+  <!-- Speed & RPM -->
+  <div id="speedIndicator" style="
+    position:absolute; 
+    top:10px; left:10px;
+    color:#fff; font-size:18px;
+  ">Speed: 0 km/h</div>
 
-  <!-- Game Over Screen -->
-  <div id="gameOver">
-    <h2>GAME OVER</h2>
-    <p>Your Time: <span id="finalTime"></span></p>
-    <button id="restartButton">Restart</button>
-    <a id="continueLink">Continue</a>
-  </div>
+  <div id="rpmIndicator" style="
+    position:absolute; 
+    top:40px; left:10px;
+    color:#fff; font-size:18px;
+  ">RPM: 1000</div>
 
-  <!-- Game Complete Screen -->
-  <div id="gameComplete">
-    <h2>CONGRATULATIONS!</h2>
-    <p>Completion Time: <span id="completionTime"></span></p>
-    <p id="gameResultStats"></p>
-    <div id="nameInputContainer">
-      <input id="nameInput" placeholder="Your name" />
-      <button id="submitNameButton">Submit</button>
-    </div>
-    <button id="restartButtonComplete">Restart</button>
-    <a id="continueLinkComplete">Continue</a>
-  </div>
-
-  <!-- Leaderboard -->
-  <div
-    style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); padding:10px; border-radius:4px;"
-  >
-    <h3>Leaderboard</h3>
-    <ul id="leaderboardList"></ul>
-    <p id="bestTime">Best Time: N/A</p>
-  </div>
-
-  <!-- Our main script file as an ES Module -->
-  <script type="module" src="script.js"></script>
+  <!-- Main Script -->
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
