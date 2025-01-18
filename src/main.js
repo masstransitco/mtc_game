@@ -1,9 +1,9 @@
 /*****************************************************
  * main.js
- * Force-based Car + Steering Wheel + Orbit Camera
+ * Car rests on ground, moves with force, shows RPM & Speed
  *****************************************************/
 
-// ========== Imports (ES Modules) ==========
+// ========== Imports ==========
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
@@ -20,14 +20,14 @@ let physicsWorld;
 // Car
 let carMesh, carBody;
 
-// Steering
+// Steering wheel UI
 let joystickBase, joystickKnob;
 let steeringWheelActive = false;
-let steeringAngle = 0; // -1..+1 normalized
-const MAX_STEERING_ANGLE = Math.PI / 4; // ~±45°
-const STEERING_RESPONSE = 2;           // how quickly heading adjusts
+let steeringAngle = 0; // -1..+1
+const MAX_STEERING_ANGLE = Math.PI / 4;
+const STEERING_RESPONSE = 2;
 
-// Buttons (gas / brake)
+// Buttons
 let accelerateButton, brakeButton;
 let accelerateInput = false;
 let brakeInput = false;
@@ -35,28 +35,25 @@ let brakeInput = false;
 // Car driving constants
 const ENGINE_FORCE = 1200;
 const BRAKE_FORCE = 900;
-const MAX_FORWARD_SPEED = 20; // m/s (~72 km/h)
-const MAX_REVERSE_SPEED = 5;  // m/s (~18 km/h)
+const MAX_FORWARD_SPEED = 20; // ~72 km/h
+const MAX_REVERSE_SPEED = 5;  // ~18 km/h
 
-// Physics stepping
-let previousTime = 0;
-let animationId = null;
-
-// Collision UI
+// Additional UI for collisions, speed, rpm
 let collisionIndicator;
+let speedIndicator, rpmIndicator;
 
-// ========== Camera Orbit ==========
-// Let the user orbit camera around the car by pointer-drag anywhere (not on joystick/buttons).
-// Then automatically bounce back behind the car.
-let orbitAngle = 0;         // camera orbit angle around Y
-let orbitActive = false;    // user dragging
+// Orbit camera
+let orbitAngle = 0;
+let orbitActive = false;
 let orbitBouncingBack = false;
 let orbitAngleOnRelease = 0;
 let orbitDragStartX = 0;
 let orbitLerpStart = 0;
+const orbitDistance = 10;
+const orbitHeight = 5;
 
-const orbitDistance = 10;   // how far camera is from car horizontally
-const orbitHeight = 5;      // camera height above car
+let previousTime = 0;
+let animationId = null;
 
 // ========== INIT ==========
 function init() {
@@ -70,7 +67,7 @@ function init() {
   initButtons();
   initCameraOrbitControls();
 
-  // Hide Start Screen on "Play"
+  // Hide "Start Screen"
   const startScreen = document.getElementById("start-screen");
   const playButton = document.getElementById("play-button");
   if (playButton) {
@@ -81,10 +78,10 @@ function init() {
     });
   }
 
-  // Collision indicator
   collisionIndicator = document.getElementById("collisionIndicator");
+  speedIndicator = document.getElementById("speedIndicator");
+  rpmIndicator = document.getElementById("rpmIndicator");
 
-  // Start animation
   previousTime = Date.now();
   animate();
 }
@@ -94,13 +91,7 @@ function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
 
-  camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    500
-  );
-  // We'll place it behind the car in updateCamera()
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -130,7 +121,7 @@ function onWindowResize() {
 // ========== PHYSICS ==========
 function initPhysics() {
   physicsWorld = new CANNON.World({
-    gravity: new CANNON.Vec3(0, -9.82, 0),
+    gravity: new CANNON.Vec3(0, -9.82, 0)
   });
   physicsWorld.solver.iterations = 10;
   physicsWorld.defaultContactMaterial.friction = 0.4;
@@ -138,14 +129,12 @@ function initPhysics() {
   // Ground plane
   const groundBody = new CANNON.Body({ mass: 0 });
   groundBody.addShape(new CANNON.Plane());
-  // rotate so plane is horizontal
   groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
   physicsWorld.addBody(groundBody);
 }
 
 // ========== ENVIRONMENT & OBSTACLES ==========
 function initEnvironment() {
-  // Large plane
   const groundSize = 200;
   const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
   const groundMat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
@@ -158,7 +147,6 @@ function initEnvironment() {
 let obstacles = [];
 let obstacleBodies = [];
 function spawnObstacles() {
-  // Some boxes so user can see movement
   const positions = [
     { x: 0, z: 30 },
     { x: 2, z: 50 },
@@ -205,22 +193,22 @@ function loadCarModelWithDraco() {
         }
       });
 
-      // 1m tall => halfExtents.y=0.5 => place at y=0.51
+      // If halfExtents.y=0.5 => place at y=0.5 to just contact plane
       const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
       carBody = new CANNON.Body({
         mass: 500,
         shape: carShape,
-        position: new CANNON.Vec3(0, 0.51, 0),
+        position: new CANNON.Vec3(0, 0.5, 0), // Lower to 0.5
         linearDamping: 0.2,
         angularDamping: 0.3
       });
-      // Lock X,Z rotation
+      // Lock X,Z rotation so it doesn't tip
       carBody.angularFactor.set(0, 1, 0);
 
       carBody.addEventListener("collide", handleCarCollision);
 
       physicsWorld.addBody(carBody);
-      carMesh.position.set(0, 0.51, 0);
+      carMesh.position.set(0, 0.5, 0);
     },
     undefined,
     (error) => {
@@ -231,7 +219,7 @@ function loadCarModelWithDraco() {
 }
 
 function createFallbackCar() {
-  const geom = new THREE.BoxGeometry(2,1,4);
+  const geom = new THREE.BoxGeometry(2, 1, 4);
   const mat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
   carMesh = new THREE.Mesh(geom, mat);
   scene.add(carMesh);
@@ -240,7 +228,7 @@ function createFallbackCar() {
   carBody = new CANNON.Body({
     mass: 500,
     shape: shape,
-    position: new CANNON.Vec3(0, 0.51, 0),
+    position: new CANNON.Vec3(0, 0.5, 0),
     linearDamping: 0.2,
     angularDamping: 0.3
   });
@@ -248,11 +236,11 @@ function createFallbackCar() {
   carBody.addEventListener("collide", handleCarCollision);
 
   physicsWorld.addBody(carBody);
-
-  carMesh.position.set(0, 0.51, 0);
+  carMesh.position.set(0, 0.5, 0);
 }
 
 function handleCarCollision(evt) {
+  // Show collision message
   if (collisionIndicator) {
     collisionIndicator.style.display = "block";
     collisionIndicator.textContent = "Collision!";
@@ -263,8 +251,8 @@ function handleCarCollision(evt) {
   console.log("Car collided with body:", evt.body.id);
 }
 
-// ========== STEERING WHEEL JOYSTICK ==========
-// Interprets user ring rotation as -180..+180 => steeringAngle -1..+1
+// ========== STEERING WHEEL ==========
+// interpret ring rotation => -180..+180 => steeringAngle -1..+1
 function initSteeringWheelJoystick() {
   joystickBase = document.getElementById("joystick-base");
   joystickKnob = document.getElementById("joystick-knob");
@@ -291,7 +279,7 @@ function onSteeringWheelMove(e) {
 
   const rect = joystickBase.getBoundingClientRect();
   let clientX, clientY;
-  if (e.touches && e.touches.length > 0) {
+  if (e.touches && e.touches.length>0) {
     clientX = e.touches[0].clientX;
     clientY = e.touches[0].clientY;
   } else {
@@ -299,22 +287,18 @@ function onSteeringWheelMove(e) {
     clientY = e.clientY;
   }
 
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
   const dx = clientX - cx;
   const dy = clientY - cy;
-  let angle = Math.atan2(dy, dx); // -π..π
+  let angle = Math.atan2(dy, dx);
   let angleDeg = THREE.MathUtils.radToDeg(angle);
 
-  // clamp -180..180
   angleDeg = THREE.MathUtils.clamp(angleDeg, -180, 180);
 
-  // Move knob
-  // We offset knob by -50% so it stays centered
   joystickKnob.style.transform = `translate(-50%, -50%) rotate(${angleDeg}deg)`;
 
-  // Convert deg => -1..+1
-  steeringAngle = angleDeg / 180;
+  steeringAngle = angleDeg / 180; // -1..+1
 }
 
 function onSteeringWheelEnd(e) {
@@ -323,7 +307,7 @@ function onSteeringWheelEnd(e) {
   steeringWheelActive = false;
   joystickKnob.classList.remove("active");
 
-  // Return to center
+  // Return knob to 0
   joystickKnob.style.transition = "transform 0.3s ease";
   joystickKnob.style.transform = "translate(-50%, -50%) rotate(0deg)";
   setTimeout(() => {
@@ -332,32 +316,33 @@ function onSteeringWheelEnd(e) {
   }, 300);
 }
 
-// ========== BUTTONS (Accelerate / Brake) ==========
+// ========== BUTTONS ==========
+// Gas / Brake
 function initButtons() {
   accelerateButton = document.getElementById("accelerateButton");
   brakeButton = document.getElementById("brakeButton");
 
   if (accelerateButton) {
-    accelerateButton.addEventListener("mousedown", () => (accelerateInput = true));
-    accelerateButton.addEventListener("mouseup", () => (accelerateInput = false));
-    accelerateButton.addEventListener("touchstart", (e) => {
+    accelerateButton.addEventListener("mousedown", () => accelerateInput = true);
+    accelerateButton.addEventListener("mouseup", () => accelerateInput = false);
+    accelerateButton.addEventListener("touchstart", e => {
       e.preventDefault();
       accelerateInput = true;
     }, { passive: false });
-    accelerateButton.addEventListener("touchend", (e) => {
+    accelerateButton.addEventListener("touchend", e => {
       e.preventDefault();
       accelerateInput = false;
     }, { passive: false });
   }
 
   if (brakeButton) {
-    brakeButton.addEventListener("mousedown", () => (brakeInput = true));
-    brakeButton.addEventListener("mouseup", () => (brakeInput = false));
-    brakeButton.addEventListener("touchstart", (e) => {
+    brakeButton.addEventListener("mousedown", () => brakeInput = true);
+    brakeButton.addEventListener("mouseup", () => brakeInput = false);
+    brakeButton.addEventListener("touchstart", e => {
       e.preventDefault();
       brakeInput = true;
     }, { passive: false });
-    brakeButton.addEventListener("touchend", (e) => {
+    brakeButton.addEventListener("touchend", e => {
       e.preventDefault();
       brakeInput = false;
     }, { passive: false });
@@ -365,15 +350,13 @@ function initButtons() {
 }
 
 // ========== ORBIT CAMERA CONTROLS ==========
-// We'll let user drag anywhere that's not the joystick or buttons => orbit the camera.
 function initCameraOrbitControls() {
   document.addEventListener("mousedown", orbitStart, false);
   document.addEventListener("touchstart", orbitStart, { passive: false });
 }
 
 function orbitStart(e) {
-  // If user is on joystick or buttons, ignore
-  const ignoreIds = ["joystick-base", "joystick-knob", "accelerateButton", "brakeButton"];
+  const ignoreIds = ["joystick-base","joystick-knob","accelerateButton","brakeButton"];
   if (ignoreIds.includes(e.target.id)) return;
 
   e.preventDefault();
@@ -394,8 +377,7 @@ function orbitMove(e) {
   const deltaX = clientX - orbitDragStartX;
   orbitDragStartX = clientX;
 
-  // Negative to rotate in a typical direction
-  orbitAngle += deltaX * -0.3 * (Math.PI / 180);
+  orbitAngle += deltaX * -0.3 * (Math.PI/180);
 }
 
 function orbitEnd(e) {
@@ -407,13 +389,12 @@ function orbitEnd(e) {
   document.removeEventListener("mouseup", orbitEnd);
   document.removeEventListener("touchend", orbitEnd);
 
-  // bounce back
   orbitAngleOnRelease = orbitAngle;
   orbitLerpStart = Date.now();
   orbitBouncingBack = true;
 }
 
-// ========== ANIMATION LOOP ==========
+// ========== MAIN ANIMATION ==========
 function animate() {
   animationId = requestAnimationFrame(animate);
 
@@ -421,7 +402,7 @@ function animate() {
   const dt = (now - previousTime) / 1000;
   previousTime = now;
 
-  physicsWorld.step(1 / 60, dt, 3);
+  physicsWorld.step(1/60, dt, 3);
 
   updateCarLogic(dt);
   updateObstacles();
@@ -430,17 +411,15 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// If obstacles are dynamic, sync them here
 function updateObstacles() {
-  // ours are static
+  // static => do nothing
 }
 
 // ========== CAR LOGIC ==========
-// heading=0 => facing +Z
 function updateCarLogic(dt) {
   if (!carBody) return;
 
-  // 1) Steering => read current Y rotation, lerp to target
+  // 1) Steering
   const currentHeading = getBodyYRotation(carBody);
   const targetHeading = steeringAngle * MAX_STEERING_ANGLE;
   const diff = targetHeading - currentHeading;
@@ -448,8 +427,8 @@ function updateCarLogic(dt) {
   const newHeading = currentHeading + turn;
   setBodyYRotation(carBody, newHeading);
 
-  // 2) Forward/Backward force
-  // heading=0 => forward is +Z => let's define forwardVec
+  // 2) Force application
+  // heading=0 => facing +Z
   const forwardVec = new CANNON.Vec3(Math.sin(newHeading), 0, Math.cos(newHeading));
   const vel = carBody.velocity.clone();
   const forwardSpeed = vel.dot(forwardVec);
@@ -461,7 +440,7 @@ function updateCarLogic(dt) {
       carBody.applyForce(force, carBody.position);
     }
   }
-  // Brake / Reverse
+  // Brake
   if (brakeInput) {
     if (forwardSpeed > -MAX_REVERSE_SPEED) {
       const reverseForce = forwardVec.scale(-BRAKE_FORCE);
@@ -469,17 +448,40 @@ function updateCarLogic(dt) {
     }
   }
 
-  // (Optional) clamp extremely large speeds
-  const speedLimit = 50;
-  const curSpeed = carBody.velocity.length();
-  if (curSpeed > speedLimit) {
-    carBody.velocity.scale(speedLimit / curSpeed, carBody.velocity);
+  // 3) Speed limit
+  const speedLimit = 50; // just an upper clamp
+  const currentSpeed = carBody.velocity.length();
+  if (currentSpeed > speedLimit) {
+    carBody.velocity.scale(speedLimit / currentSpeed, carBody.velocity);
   }
 
-  // Sync mesh
+  // 4) Sync mesh
   if (carMesh) {
     carMesh.position.copy(carBody.position);
     carMesh.quaternion.copy(carBody.quaternion);
+  }
+
+  // 5) Update speed & RPM displays
+  updateSpeedAndRPM(forwardSpeed);
+}
+
+function updateSpeedAndRPM(forwardSpeed) {
+  // forwardSpeed is in m/s along the car's forward direction
+  // Convert to km/h
+  const speedKmh = Math.abs(forwardSpeed) * 3.6;
+
+  // A simple contrived formula for RPM:
+  //   idle = 800 RPM
+  //   plus ~ 200 rpm per (m/s)
+  let rpm = 800 + 200 * Math.abs(forwardSpeed); 
+  // clamp or tweak as needed
+  rpm = Math.floor(rpm);
+
+  if (speedIndicator) {
+    speedIndicator.textContent = `Speed: ${speedKmh.toFixed(1)} km/h`;
+  }
+  if (rpmIndicator) {
+    rpmIndicator.textContent = `RPM: ${rpm}`;
   }
 }
 
@@ -487,26 +489,24 @@ function updateCarLogic(dt) {
 function updateCamera(dt) {
   if (!carBody) return;
 
-  // bounce back if not orbitActive
+  // bounce back if user not dragging
   if (!orbitActive && orbitBouncingBack) {
     const t = (Date.now() - orbitLerpStart) / 1000;
-    const bounceDuration = 1; // 1s
+    const bounceDuration = 1; // 1 second
     if (t >= bounceDuration) {
       orbitAngle = 0;
       orbitBouncingBack = false;
     } else {
-      // ease out
-      const ratio = 1 - Math.pow(1 - t/bounceDuration, 3);
+      const ratio = 1 - Math.pow(1 - t/bounceDuration, 3); // ease out
       orbitAngle = THREE.MathUtils.lerp(orbitAngleOnRelease, 0, ratio);
     }
   }
 
-  // The camera angle around the car => (car heading + π) + orbitAngle
   const heading = getBodyYRotation(carBody);
-  const baseAngle = heading + Math.PI;  // behind the car
+  // behind the car => heading + π
+  const baseAngle = heading + Math.PI;
   const camAngle = baseAngle + orbitAngle;
 
-  // Position camera at some distance behind & above the car
   const carPos = carBody.position;
   const camX = carPos.x + Math.sin(camAngle)*orbitDistance;
   const camZ = carPos.z + Math.cos(camAngle)*orbitDistance;
@@ -516,9 +516,8 @@ function updateCamera(dt) {
   camera.lookAt(carPos.x, carPos.y, carPos.z);
 }
 
-// ========== HELPERS for Body Y Rotation ==========
+// ========== Helpers: Get/Set Body Y Rotation ==========
 function getBodyYRotation(body) {
-  // read yaw from quaternion
   const q = body.quaternion;
   const euler = new THREE.Euler().setFromQuaternion(
     new THREE.Quaternion(q.x, q.y, q.z, q.w),
@@ -528,7 +527,6 @@ function getBodyYRotation(body) {
 }
 
 function setBodyYRotation(body, yRad) {
-  // set yaw only
   const euler = new THREE.Euler(0, yRad, 0, "YXZ");
   const quat = new THREE.Quaternion().setFromEuler(euler);
   body.quaternion.set(quat.x, quat.y, quat.z, quat.w);
