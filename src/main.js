@@ -1,9 +1,13 @@
-// Import three.js and its modules
+/*****************************************************
+ * main.js (Full Example) - Prevents "Flying Car" Issue
+ *****************************************************/
+
+// ----------- Imports -----------
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as CANNON from 'cannon-es';
 
-// ================== GLOBALS ==================
+// ----------- GLOBALS -----------
 let scene, camera, renderer;
 let environmentGroup;
 let MTC; // User's car mesh
@@ -11,7 +15,7 @@ let userCarBody;
 let userCarLoaded = false;
 
 let physicsWorld;
-let obstacleModels = {}; // Loaded obstacle models: { taxi, bus, lgv }
+let obstacleModels = {};
 let obstaclePool = [];
 let obstacleBodies = [];
 let obstacles = [];
@@ -19,19 +23,19 @@ let obstacles = [];
 const obstacleTypes = ["taxi", "bus", "lgv"];
 const maxObstacles = 3; 
 
-// Example lane positions in X
+// Lane positions in X (adjust if needed)
 let lanePositions = [-2, 0, 2];
 
-// Player inputs (updated to match “pull joystick backward => move forward”)
+// Player inputs
 let accelerateInput = false;
 let decelerateInput = false;
 let moveLeft = false;
 let moveRight = false;
 
-// Speeds (Car and obstacles move in +Z)
+// Speeds
 const baseVelocity = 6.944; // ~25 km/h
-const minVelocity = 0.278;  // ~1 km/h
-const maxVelocity = 44.444; // ~160 km/h
+const minVelocity = 0.278;  // 1 km/h
+const maxVelocity = 44.444; // 160 km/h
 
 // Collisions, game states
 let collisionCount = 0;
@@ -49,7 +53,7 @@ let previousTime = 0;
 let animationId;
 
 // Obstacle spawning
-let obstacleFrequency = 3; // Spawn every 3 seconds (tweak as needed)
+let obstacleFrequency = 3; // spawn every 3s
 let obstacleTimer = 0;
 let difficultyRamp = 0;
 const completionDistance = 2000;
@@ -72,17 +76,14 @@ let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
 let physicsDeltaTime = 0;
 const PHYSICS_STEP = 1 / 60;
 
-// For tracking loaded models
 let obstaclesLoadedCount = 0;
 const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1; // 3 obstacles + 1 user car
 
 // Invulnerability after game start
 let invulnerable = true;
-const invulnerabilityDuration = 3000; // 3 seconds
+const invulnerabilityDuration = 3000;
 
-// ================== CRITICAL FUNCTIONS ==================
-
-// Safely get an index from the obstacle pool
+// ----------- CRITICAL UTILS -----------
 function getObstacleFromPool() {
   for (let i = 0; i < obstaclePool.length; i++) {
     if (!obstaclePool[i].visible) {
@@ -120,11 +121,6 @@ function createFallbackModel(type) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-
-  if (mesh.geometry) {
-    mesh.geometry.computeBoundingSphere();
-  }
-  
   return mesh;
 }
 
@@ -136,58 +132,45 @@ function handleModelLoadError(type) {
   maybeInitObstaclePool();
 }
 
-// ================== LOADING MODELS ==================
+// ----------- LOADING MODELS -----------
 function loadModels() {
   const loader = new GLTFLoader();
 
-  // ======= Load user car (MTC) =======
+  // --------- Load user car (No bounding box offset => no flying) ---------
   loader.load(
     "/MTC.glb",
     (gltf) => {
       try {
+        // Add user car mesh
         MTC = gltf.scene;
-        MTC.scale.set(2.2, 2.2, 2.2);
+        MTC.scale.set(2, 2, 2);
+        environmentGroup.add(MTC);
 
-        // We'll compute the bounding box to ensure we place the car body properly
-        // We won't set position until after we compute bounding box
         MTC.traverse((child) => {
           if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            if (child.geometry) {
-              child.geometry.computeBoundingSphere();
-            }
           }
         });
 
-        environmentGroup.add(MTC);
+        // Create a simple Box shape for the physics body
+        // Hardcode approximate halfExtents
+        const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
 
-        // We'll set up the user car after we know boundingBox
-        const boundingBox = new THREE.Box3().setFromObject(MTC);
-        const size = new THREE.Vector3();
-        boundingBox.getSize(size);
-        // Typically, we want the bottom of the car at y=0. If pivot is at the center,
-        // y=1.1 might be correct, or we can do half the height. We'll do something like:
-        const halfHeight = size.y * 0.5;
-
-        // Car physics body
-        const halfExtents = new CANNON.Vec3(size.x * 0.5, size.y * 0.5, size.z * 0.5);
-        const carShape = new CANNON.Box(halfExtents);
-
+        // Place it slightly above ground to avoid intersections
         userCarBody = new CANNON.Body({
           mass: 1000,
           shape: carShape,
-          // Place the bottom of the shape on the ground plane => y = halfHeight
-          position: new CANNON.Vec3(0, halfHeight, 0),
+          position: new CANNON.Vec3(0, 0.51, 0), 
           linearDamping: 0.3,
-          angularDamping: 0.6
+          angularDamping: 0.6,
         });
         userCarBody.fixedRotation = true;
         userCarBody.updateMassProperties();
         physicsWorld.addBody(userCarBody);
 
-        // Keep track in code
-        MTC.position.set(0, halfHeight, 0);
+        // Match the visual model's position with the physics body
+        MTC.position.set(0, 0.51, 0);
 
         userCarBody.addEventListener("collide", (evt) => {
           if (evt.body && evt.body.userData && evt.body.userData.isObstacle && !invulnerable) {
@@ -200,8 +183,8 @@ function loadModels() {
         maybeInitObstaclePool();
       } catch (error) {
         console.error("Error processing MTC model:", error);
-        // Fallback
-        MTC = createFallbackModel('taxi');
+        // fallback
+        MTC = createFallbackModel("taxi");
         environmentGroup.add(MTC);
         userCarLoaded = true;
         obstaclesLoadedCount++;
@@ -212,7 +195,7 @@ function loadModels() {
     (error) => {
       console.error("Error loading MTC.glb:", error);
       // fallback
-      MTC = createFallbackModel('taxi');
+      MTC = createFallbackModel("taxi");
       environmentGroup.add(MTC);
       userCarLoaded = true;
       obstaclesLoadedCount++;
@@ -220,6 +203,7 @@ function loadModels() {
     }
   );
 
+  // Helper for loading obstacle models
   function loadObstacleModel(url, modelKey, onLoadCallback) {
     loader.load(
       url,
@@ -257,13 +241,12 @@ function loadModels() {
   loadObstacleModel("/LGV.glb", "lgv");
 }
 
-// ================== SCENE & PHYSICS SETUP ==================
+// ----------- SCENE & PHYSICS -----------
 function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1C262D);
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-  // Start behind the car (since the car is at z=0)
   camera.position.set(0, 5, -15);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -287,7 +270,7 @@ function initScene() {
   dirLight.shadow.camera.far = 200;
   scene.add(dirLight);
 
-  window.addEventListener("resize", onWindowResize, false);
+  window.addEventListener("resize", onWindowResize);
 }
 
 function onWindowResize() {
@@ -303,21 +286,20 @@ function initPhysics() {
     allowSleep: true
   });
   physicsWorld.solver.iterations = 10;
-  physicsWorld.defaultContactMaterial.friction = 0.6; 
+  physicsWorld.defaultContactMaterial.friction = 0.6;
 
-  // Static ground (plane)
+  // Static ground plane
   const groundBody = new CANNON.Body({
     mass: 0,
     shape: new CANNON.Plane()
   });
-  // Orient it so +Y is up
+  // Rotate so normal = +Y
   groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
   physicsWorld.addBody(groundBody);
 }
 
-// ================== ENVIRONMENT & OBSTACLES ==================
+// ----------- ENVIRONMENT -----------
 function setupEnvironment() {
-  // Road
   const roadWidth = 6;
   const roadLength = 2000;
   const roadGeom = new THREE.PlaneGeometry(roadWidth, roadLength);
@@ -361,7 +343,7 @@ function createLaneMarkingsInstanced(roadLength, lanes) {
 
   const instanced = new THREE.InstancedMesh(markerGeom, markerMat, totalMarkers);
   let index = 0;
-  // Center road from -roadLength/2 to +roadLength/2
+
   for (let z = -roadLength / 2; z < roadLength / 2; z += spacing) {
     for (let laneX of lanes) {
       const dummy = new THREE.Object3D();
@@ -373,7 +355,7 @@ function createLaneMarkingsInstanced(roadLength, lanes) {
   environmentGroup.add(instanced);
 }
 
-// Initialize the obstacle pool once all models are loaded
+// ----------- OBSTACLE POOL -----------
 function initObstaclePool() {
   console.log("Initializing obstacle pool...");
   for (let i = 0; i < maxObstacles; i++) {
@@ -402,7 +384,7 @@ function initObstaclePool() {
     const size = new THREE.Vector3();
     boundingBox.getSize(size);
 
-    const halfExtents = new CANNON.Vec3(size.x * 0.5, size.y * 0.5, size.z * 0.5);
+    const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
     const body = new CANNON.Body({
       mass: 500,
       shape: new CANNON.Box(halfExtents),
@@ -425,7 +407,7 @@ function initObstaclePool() {
   console.log("Obstacle pool created:", obstaclePool.length);
 }
 
-// ================== SPAWN & UPDATE OBSTACLES ==================
+// ----------- SPAWN & UPDATE OBSTACLES -----------
 function spawnObstacle() {
   if (!userCarLoaded || obstaclePool.length === 0) return;
 
@@ -436,22 +418,16 @@ function spawnObstacle() {
   const obsBody = obstacleBodies[poolIndex];
   if (!obs || !obsBody) return;
 
-  // Decide if spawning in front or behind user
   const userZ = userCarBody.position.z;
   const spawnBehind = Math.random() < 0.5; 
-  // 50% chance behind, 50% in front (tweak as desired)
 
   let lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
   let spawnZ = 0;
 
   if (spawnBehind) {
-    // spawn behind at random distance
     spawnZ = userZ - (50 + Math.random() * 50);
-    // behind obstacles have higher speed to catch user
   } else {
-    // spawn in front
     spawnZ = userZ + (50 + Math.random() * 100);
-    // front obstacles have slower speed so user can catch them
   }
 
   obs.visible = true;
@@ -463,29 +439,19 @@ function spawnObstacle() {
   obsBody.angularVelocity.set(0, 0, 0);
   obsBody.quaternion.setFromEuler(0, 0, 0);
 
-  // If behind => higher speed, if ahead => slower speed
   let obstacleSpeed;
   if (spawnBehind) {
-    // user is ~ baseVelocity => ~25 km/h
-    // behind obstacle: maybe 30~40 km/h so it can catch up
     obstacleSpeed = 8.33 + difficultyRamp + Math.random() * 5; 
   } else {
-    // in front obstacle: maybe 10~20 km/h so user can catch up
     obstacleSpeed = 2.77 + difficultyRamp + Math.random() * 5; 
   }
   obsBody.userData.speed = obstacleSpeed;
-
-  // They all move in +Z direction
   obsBody.velocity.z = obstacleSpeed;
 
   obstacles.push({ mesh: obs, body: obsBody });
 }
 
 function updateObstacles(dt) {
-  // Instead of frustum-based culling (which can cause boundingSphere issues
-  // on non-mesh objects), let's do a simple positional check:
-  // If the obstacle is too far from the user, remove it.
-
   const userZ = userCarBody.position.z;
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const { mesh, body } = obstacles[i];
@@ -493,9 +459,7 @@ function updateObstacles(dt) {
       obstacles.splice(i, 1);
       continue;
     }
-    // If obstacle is way behind or way ahead the user
     if (body.position.z > userZ + 2000 || body.position.z < userZ - 2000) {
-      // recycle
       mesh.visible = false;
       body.position.set(0, -1000, 0);
       obstacles.splice(i, 1);
@@ -503,7 +467,7 @@ function updateObstacles(dt) {
   }
 }
 
-// ================== COLLISIONS ==================
+// ----------- COLLISIONS -----------
 function handleCollision() {
   if (gameOver || invulnerable) return;
 
@@ -539,7 +503,7 @@ function displayWarningIndicator() {
   }
 }
 
-// ================== GAME OVER / COMPLETION ==================
+// ----------- GAME OVER / COMPLETION -----------
 function triggerGameOver() {
   if (gameOver) return;
   gameOver = true;
@@ -594,21 +558,19 @@ function handleGameCompletion() {
   });
 }
 
-// ================== CAMERA ORBIT ==================
+// ----------- CAMERA ORBIT -----------
 function startCameraOrbit(onComplete) {
   orbitActive = true;
   orbitStartTime = Date.now();
 
   function orbitStep() {
     const now = Date.now();
-    const t = (now - orbitStartTime) / 2000; // 2s orbit
+    const t = (now - orbitStartTime) / 2000;
     if (t < 1) {
       const angle = 2 * Math.PI * t;
       const radius = 15;
       let center = new THREE.Vector3(0, 0, 0);
-      if (MTC) {
-        center.copy(MTC.position);
-      }
+      if (MTC) center.copy(MTC.position);
       camera.position.x = center.x + Math.cos(angle) * radius;
       camera.position.z = center.z + Math.sin(angle) * radius;
       camera.position.y = 5 + 2 * Math.sin(t * Math.PI);
@@ -622,7 +584,7 @@ function startCameraOrbit(onComplete) {
   orbitStep();
 }
 
-// ================== JOYSTICK ==================
+// ----------- JOYSTICK -----------
 function initJoystick() {
   joystickBase = document.getElementById("joystick-base");
   joystickKnob = document.getElementById("joystick-knob");
@@ -679,11 +641,9 @@ function onJoystickEnd(e) {
 }
 
 /**
- * NOTE: We want:
- * - Joystick pulled "backward" (the bottom of the screen) => accelerate => +Z
- *   That means joystickY > +deadZone => accelerateInput
- * - Joystick pulled "forward" (the top of the screen) => decelerate => -Z
- *   That means joystickY < -deadZone => decelerateInput
+ * For "pull backward" => accelerate => +Z
+ * We'll say if joystickY > 0.2 => accelerate
+ * If joystickY < -0.2 => decelerate
  */
 function updateJoystick(e) {
   const rect = joystickBase.getBoundingClientRect();
@@ -710,15 +670,13 @@ function updateJoystick(e) {
   joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
   const deadZone = 0.2;
-  // "Pull backward" => y > +0.2 => accelerate
-  accelerateInput = joystickY > deadZone;
-  // "Pull forward" => y < -0.2 => decelerate
-  decelerateInput = joystickY < -deadZone;
+  accelerateInput = joystickY > deadZone;      // pull backward => +Z
+  decelerateInput = joystickY < -deadZone;     // push forward => -Z
   moveLeft = joystickX < -deadZone;
   moveRight = joystickX > deadZone;
 }
 
-// ================== MAIN ANIMATION LOOP ==================
+// ----------- MAIN ANIMATION -----------
 function animate() {
   if (gameOver || gameCompleted) {
     cancelAnimationFrame(animationId);
@@ -731,7 +689,6 @@ function animate() {
   const dt = (now - previousTime) / 1000;
   previousTime = now;
 
-  // Step physics in discrete increments
   physicsDeltaTime += dt;
   while (physicsDeltaTime >= PHYSICS_STEP) {
     updatePhysics(PHYSICS_STEP);
@@ -754,16 +711,15 @@ function updatePhysics(dt) {
   physicsWorld.step(dt);
 
   if (userCarBody) {
-    // Current velocity in +Z
     let currentVelZ = userCarBody.velocity.z;
 
-    // Joystick controls: pulling backward => accelerate => +Z
+    // If pulling joystick "backward" => accelerate in +Z
     if (accelerateInput) {
       currentVelZ = Math.min(currentVelZ + 5, maxVelocity);
     } else if (decelerateInput) {
       currentVelZ = Math.max(currentVelZ - 5, minVelocity);
     } else {
-      // Approach baseVelocity if no input
+      // Approach baseVelocity
       if (currentVelZ > baseVelocity) {
         currentVelZ = Math.max(currentVelZ - 2 * dt, baseVelocity);
       } else if (currentVelZ < baseVelocity) {
@@ -778,7 +734,6 @@ function updatePhysics(dt) {
     } else if (moveRight) {
       userCarBody.velocity.x = 5;
     } else {
-      // Dampen side velocity
       userCarBody.velocity.x *= 0.9;
       if (Math.abs(userCarBody.velocity.x) < 0.05) {
         userCarBody.velocity.x = 0;
@@ -799,7 +754,6 @@ function updateVisuals(dt) {
 
   difficultyRamp = elapsedTime * 0.2;
 
-  // The user car's forward distance is userCarBody.position.z
   if (userCarBody) {
     distance = Math.max(0, userCarBody.position.z);
   }
@@ -815,7 +769,6 @@ function updateVisuals(dt) {
     scoreElement.textContent = `Score: ${scoreboard}`;
   }
 
-  // Check for completion
   if (distance >= completionDistance) {
     handleGameCompletion();
     return;
@@ -830,7 +783,7 @@ function updateVisuals(dt) {
     }
   }
 
-  // Slight car tilt
+  // Slight tilt
   if (MTC) {
     if (moveLeft) {
       MTC.rotation.z = 0.1;
@@ -876,7 +829,7 @@ function updateCamera() {
   );
 }
 
-// ================== LEADERBOARD & UI ==================
+// ----------- LEADERBOARD & UI -----------
 function updateLeaderboard() {
   let position = null;
   for (let i = 0; i < leaderboard.length; i++) {
@@ -956,14 +909,13 @@ function updateBestTimeDisplay() {
   }
 }
 
-// ================== GAME CONTROLS ==================
+// ----------- GAME CONTROLS -----------
 function startGame() {
   const startScreen = document.getElementById("start-screen");
   const instructions = document.getElementById("instructions");
   if (startScreen) startScreen.style.display = "none";
   if (instructions) instructions.style.display = "none";
 
-  // Simple camera animation from some distance
   startCameraAnimation();
 }
 
@@ -1013,19 +965,16 @@ function resetGameState() {
 
   updateHealthBar();
 
-  // Reposition user car to ground
+  // Reset user car to ground
   if (userCarBody) {
-    // place it so it definitely touches the ground
-    const halfHeight = (userCarBody.shapes[0].halfExtents.y);
-    userCarBody.position.set(0, halfHeight, 0);
+    // If our box shape is halfExtents(1,0.5,2), place it just above y=0
+    userCarBody.position.set(0, 0.51, 0);
     userCarBody.velocity.set(0, 0, 0);
     userCarBody.angularVelocity.set(0, 0, 0);
     userCarBody.quaternion.set(0, 0, 0, 1);
   }
   if (MTC) {
-    if (userCarBody) {
-      MTC.position.copy(userCarBody.position);
-    }
+    MTC.position.set(0, 0.51, 0);
     MTC.rotation.set(0, 0, 0);
   }
 
@@ -1044,14 +993,13 @@ function resetGameState() {
 
   updateBestTimeDisplay();
 
-  // Invulnerability
+  // Invulnerable for a few seconds
   invulnerable = true;
   setTimeout(() => {
     invulnerable = false;
   }, invulnerabilityDuration);
 }
 
-// Helper to format time
 function formatTime(sec) {
   const mins = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -1059,11 +1007,11 @@ function formatTime(sec) {
   return `${mins}:${s < 10 ? "0" : ""}${s}.${ms}`;
 }
 
-// ================== INITIALIZATION ==================
+// ----------- INITIALIZATION -----------
 function init() {
   initScene();
   initPhysics();
-  loadModels(); 
+  loadModels();
   setupEnvironment();
   initJoystick();
 
@@ -1088,6 +1036,7 @@ function init() {
   continueLinks.forEach(link => {
     if (link) {
       link.addEventListener("click", () => {
+        // Example link
         window.location.href = "https://air.zone";
       });
     }
@@ -1097,6 +1046,7 @@ function init() {
   updateBestTimeDisplay();
 }
 
+// Start once DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   init();
 });
