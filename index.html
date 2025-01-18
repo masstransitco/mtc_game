@@ -1,88 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Car Collision Demo</title>
-  <!-- Link to your external CSS -->
-  <link rel="stylesheet" href="/src/style.css" />
-  <!-- Adjust for mobile responsiveness -->
+  <meta charset="UTF-8"/>
+  <title>Car Game Demo</title>
+  <link rel="stylesheet" href="/src/style.css"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-  <!-- ============= Start Screen UI ============= -->
+
+  <!-- Start Screen -->
   <div id="start-screen">
-    <h1>Car Collision Demo</h1>
-    <p>Press Play to start!</p>
+    <h1>Car Driving Demo</h1>
     <button id="play-button">Play</button>
   </div>
 
-  <!-- ============= Instructions Overlay ============= -->
-  <div id="instructions">
-    <h2>Instructions</h2>
-    <p>Use the joystick or arrow keys to move!</p>
+  <!-- Collision Indicator -->
+  <div id="collisionIndicator" style="
+    display:none;
+    position:absolute;
+    top:50px; left:50%;
+    transform:translateX(-50%);
+    background:#f00; 
+    color:#fff; 
+    padding:10px; 
+    border-radius:4px;
+  ">
+    Collision!
   </div>
 
-  <!-- ============= Main UI overlay =============
-       (Time, speed, distance, score, etc.)
-       If you want a purely minimal example, you can remove these. -->
-  <div id="uiOverlay">
-    <div id="time">Time: 0:00.000</div>
-    <div id="speedometer">0 km/h</div>
-    <div id="distance">Distance: 0.0 m</div>
-    <div id="score">Score: 0</div>
+  <!-- Joystick for steering left/right -->
+  <div id="joystick-base" style="
+    position:absolute; 
+    bottom:20px; left:20px;
+    width:100px; height:100px; 
+    background:rgba(0,0,0,0.3);
+    border-radius:50%;
+  ">
+    <div id="joystick-knob" style="
+      width:50px; height:50px; 
+      background:rgba(255,255,255,0.5);
+      border-radius:50%;
+      position:absolute;
+      top:25px; left:25px;
+      transform:translate(0,0);
+    "></div>
   </div>
 
-  <!-- ============= Collision Warning Indicator =============
-       You can remove if you no longer handle collisions. -->
-  <div id="warningIndicator">Collision!</div>
+  <!-- Accelerate & Brake Buttons -->
+  <button id="accelerateButton" style="
+    position:absolute;
+    bottom:80px; right:20px;
+    width:80px; height:80px;
+    border-radius:50%;
+    background:green;
+    color:#fff; font-size:16px;
+  ">Gas</button>
 
-  <!-- ============= Health Bar =============
-       Remove if not tracking health/collisions. -->
-  <div id="healthBarContainer">
-    <div id="healthBar"></div>
-  </div>
+  <button id="brakeButton" style="
+    position:absolute;
+    bottom:180px; right:20px;
+    width:80px; height:80px;
+    border-radius:50%;
+    background:red;
+    color:#fff; font-size:16px;
+  ">Brake</button>
 
-  <!-- ============= Joystick =============
-       Needed for your simplified code that uses joystick input. -->
-  <div id="joystick-base">
-    <div id="joystick-knob"></div>
-  </div>
-
-  <!-- ============= Game Over Screen =============
-       Remove if you’re not implementing a "Game Over" state yet. -->
-  <div id="gameOver">
-    <h2>GAME OVER</h2>
-    <p>Your Time: <span id="finalTime"></span></p>
-    <button id="restartButton">Restart</button>
-    <a id="continueLink">Continue</a>
-  </div>
-
-  <!-- ============= Game Complete Screen =============
-       Remove if you don’t plan to use it yet. -->
-  <div id="gameComplete">
-    <h2>CONGRATULATIONS!</h2>
-    <p>Completion Time: <span id="completionTime"></span></p>
-    <p id="gameResultStats"></p>
-    <div id="nameInputContainer">
-      <input id="nameInput" placeholder="Your name" />
-      <button id="submitNameButton">Submit</button>
-    </div>
-    <button id="restartButtonComplete">Restart</button>
-    <a id="continueLinkComplete">Continue</a>
-  </div>
-
-  <!-- ============= Leaderboard =============
-       Only needed if you’re storing times. -->
-  <div
-    style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); padding:10px; border-radius:4px;"
-  >
-    <h3>Leaderboard</h3>
-    <ul id="leaderboardList"></ul>
-    <p id="bestTime">Best Time: N/A</p>
-  </div>
-
-  <!-- ============= Main Script =============
-       Using the simplified Draco-loading code. -->
+  <!-- Our main script -->
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
