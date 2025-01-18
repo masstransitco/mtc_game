@@ -1,6 +1,6 @@
 /*****************************************************
  * main.js
- * - Ensures Car Sits on Ground
+ * - Ensures Car Sits on Ground using Bounding Box
  * - Steering Wheel Ring Design
  * - Applies Forces for Acceleration & Braking
  * - Displays RPM & Speed
@@ -14,17 +14,11 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import * as CANNON from "cannon-es";
 
 // ========== GLOBALS ==========
-
-// Three.js Variables
 let scene, camera, renderer;
-
-// Cannon.js Variables
 let physicsWorld;
-
-// Car Variables
 let carMesh, carBody;
 
-// Steering Wheel UI
+// Steering wheel UI
 let steeringWheelBase, steeringWheelKnob;
 let steeringWheelActive = false;
 let steeringAngle = 0; // -1..+1 normalized
@@ -35,7 +29,7 @@ const STEERING_RESPONSE = 2; // How quickly the heading adjusts
 let accelerateButton, brakeButton;
 let accelerateInput = false, brakeInput = false;
 
-// Car Driving Constants
+// Car driving constants
 const ENGINE_FORCE = 1200; // Newtons
 const BRAKE_FORCE = 900;   // Newtons
 const MAX_FORWARD_SPEED = 20; // m/s (~72 km/h)
@@ -45,7 +39,7 @@ const MAX_REVERSE_SPEED = 5;  // m/s (~18 km/h)
 let collisionIndicator;
 let speedIndicator, rpmIndicator;
 
-// Orbit Camera Variables
+// Orbit camera variables
 let orbitAngle = 0;         // Current orbit angle around Y-axis
 let orbitActive = false;    // Is the user currently orbiting?
 let orbitBouncingBack = false;
@@ -162,6 +156,7 @@ function initEnvironment() {
 let obstacles = [];
 let obstacleBodies = [];
 function spawnObstacles() {
+  // Some sample boxes
   const positions = [
     { x: 0, z: 30 },
     { x: 2, z: 50 },
@@ -170,19 +165,19 @@ function spawnObstacles() {
     { x: -5, z: 110 },
   ];
 
-  for (let pos of positions) {
+  for (let p of positions) {
     const size = 2;
     const geo = new THREE.BoxGeometry(size, size, size);
     const mat = new THREE.MeshLambertMaterial({ color: 0x888888 }); // Gray
     const boxMesh = new THREE.Mesh(geo, mat);
     boxMesh.castShadow = true;
     boxMesh.receiveShadow = true;
-    boxMesh.position.set(pos.x, size / 2, pos.z);
+    boxMesh.position.set(p.x, size / 2, p.z);
     scene.add(boxMesh);
 
     const shape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
     const body = new CANNON.Body({ mass: 0, shape: shape });
-    body.position.set(pos.x, size / 2, pos.z);
+    body.position.set(p.x, size / 2, p.z);
     physicsWorld.addBody(body);
 
     obstacles.push(boxMesh);
@@ -212,17 +207,25 @@ function loadCarModelWithDraco() {
         }
       });
 
-      // Compute bounding box to adjust position
+      // Compute bounding box
       const bbox = new THREE.Box3().setFromObject(carMesh);
       const size = new THREE.Vector3();
       bbox.getSize(size);
       const minY = bbox.min.y;
 
-      // Shift the car mesh so that minY is at y=0
-      carMesh.position.y -= minY;
+      console.log("Car Bounding Box Size:", size);
+      console.log("Car Bounding Box Min Y:", minY);
+
+      // Compute yOffset to align minY to 0
+      const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
+      const yOffset = halfExtents.y - minY;
+
+      console.log("Computed yOffset:", yOffset);
+
+      // Shift mesh to set minY to 0
+      carMesh.position.y += yOffset;
 
       // Define Cannon shape based on bounding box size
-      const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
       const shape = new CANNON.Box(halfExtents);
 
       // Create Cannon body
@@ -246,6 +249,14 @@ function loadCarModelWithDraco() {
       // Sync mesh with physics body
       carMesh.position.copy(carBody.position);
       carMesh.quaternion.copy(carBody.quaternion);
+
+      // Rotate the car mesh to face +Z if necessary
+      // Assume model faces -Z initially; rotate 180 degrees around Y-axis
+      carMesh.rotation.y = Math.PI;
+      carBody.quaternion.setFromEuler(0, Math.PI, 0, "YXZ");
+      carMesh.quaternion.copy(carBody.quaternion);
+
+      console.log("Car positioned at:", carBody.position.toString());
     },
     undefined,
     (error) => {
@@ -268,23 +279,31 @@ function createFallbackCar() {
   bbox.getSize(size);
   const minY = bbox.min.y;
 
-  // Shift mesh to sit on ground
-  carMesh.position.y -= minY;
+  console.log("Fallback Car Bounding Box Size:", size);
+  console.log("Fallback Car Bounding Box Min Y:", minY);
 
-  // Define Cannon shape
+  // Compute yOffset to align minY to 0
   const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
+  const yOffset = halfExtents.y - minY;
+
+  console.log("Fallback Car Computed yOffset:", yOffset);
+
+  // Shift mesh to set minY to 0
+  carMesh.position.y += yOffset;
+
+  // Define Cannon shape based on bounding box size
   const shape = new CANNON.Box(halfExtents);
 
   // Create Cannon body
   carBody = new CANNON.Body({
-    mass: 500,
+    mass: 500, // Heavier mass for better physics
     shape: shape,
-    position: new CANNON.Vec3(0, halfExtents.y, 0),
-    linearDamping: 0.2,
-    angularDamping: 0.3,
+    position: new CANNON.Vec3(0, halfExtents.y, 0), // Place so bottom touches ground
+    linearDamping: 0.2, // Reduces velocity over time
+    angularDamping: 0.3, // Reduces rotation over time
   });
 
-  // Lock X and Z rotation
+  // Lock X and Z rotation to prevent tipping
   carBody.angularFactor.set(0, 1, 0);
 
   // Add collision event listener
@@ -296,6 +315,14 @@ function createFallbackCar() {
   // Sync mesh with physics body
   carMesh.position.copy(carBody.position);
   carMesh.quaternion.copy(carBody.quaternion);
+
+  // Rotate the car mesh to face +Z if necessary
+  // Assume model faces -Z initially; rotate 180 degrees around Y-axis
+  carMesh.rotation.y = Math.PI;
+  carBody.quaternion.setFromEuler(0, Math.PI, 0, "YXZ");
+  carMesh.quaternion.copy(carBody.quaternion);
+
+  console.log("Fallback Car positioned at:", carBody.position.toString());
 }
 
 function handleCarCollision(evt) {
@@ -387,29 +414,45 @@ function initButtons() {
 
   // Accelerate Button Event Listeners
   if (accelerateButton) {
-    accelerateButton.addEventListener("mousedown", () => (accelerateInput = true));
-    accelerateButton.addEventListener("mouseup", () => (accelerateInput = false));
+    accelerateButton.addEventListener("mousedown", () => {
+      accelerateInput = true;
+      console.log("Gas pressed");
+    });
+    accelerateButton.addEventListener("mouseup", () => {
+      accelerateInput = false;
+      console.log("Gas released");
+    });
     accelerateButton.addEventListener("touchstart", (e) => {
       e.preventDefault();
       accelerateInput = true;
+      console.log("Gas pressed (touch)");
     }, { passive: false });
     accelerateButton.addEventListener("touchend", (e) => {
       e.preventDefault();
       accelerateInput = false;
+      console.log("Gas released (touch)");
     }, { passive: false });
   }
 
   // Brake Button Event Listeners
   if (brakeButton) {
-    brakeButton.addEventListener("mousedown", () => (brakeInput = true));
-    brakeButton.addEventListener("mouseup", () => (brakeInput = false));
+    brakeButton.addEventListener("mousedown", () => {
+      brakeInput = true;
+      console.log("Brake pressed");
+    });
+    brakeButton.addEventListener("mouseup", () => {
+      brakeInput = false;
+      console.log("Brake released");
+    });
     brakeButton.addEventListener("touchstart", (e) => {
       e.preventDefault();
       brakeInput = true;
+      console.log("Brake pressed (touch)");
     }, { passive: false });
     brakeButton.addEventListener("touchend", (e) => {
       e.preventDefault();
       brakeInput = false;
+      console.log("Brake released (touch)");
     }, { passive: false });
   }
 }
@@ -534,6 +577,9 @@ function updateCarLogic(dt) {
 
   // 5. Update Speed and RPM Indicators
   updateSpeedAndRPM(forwardSpeed);
+
+  // Additional Logging for Debugging
+  console.log(`Forward Speed: ${forwardSpeed.toFixed(2)} m/s, Total Speed: ${currentSpeed.toFixed(2)} m/s`);
 }
 
 function updateSpeedAndRPM(forwardSpeed) {
@@ -543,7 +589,7 @@ function updateSpeedAndRPM(forwardSpeed) {
     speedIndicator.textContent = `Speed: ${speedKmh.toFixed(1)} km/h`;
   }
 
-  // Simple RPM calculation: idle RPM + (speed factor)
+  // Simple RPM calculation
   let rpm = 800 + 200 * Math.abs(forwardSpeed); // Adjust factors as needed
   rpm = Math.floor(rpm);
   if (rpmIndicator) {
