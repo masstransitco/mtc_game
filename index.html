@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <title>Car Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Optional: Link to external CSS for better styling -->
+  <!-- Inline CSS for simplicity; consider using an external stylesheet for larger projects -->
   <style>
-    body { margin: 0; overflow: hidden; }
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
 
     /* Start Screen */
     #start-screen {
@@ -31,6 +31,10 @@
       padding: 15px 30px;
       font-size: 24px;
       cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background: #28a745;
+      color: #fff;
     }
 
     /* Collision Indicator */
@@ -69,6 +73,7 @@
       transform: translate(-50%, -50%) rotate(0deg);
       touch-action: none;
       cursor: pointer;
+      transition: transform 0.3s ease;
     }
 
     /* Accelerate & Brake Buttons */
@@ -84,6 +89,7 @@
       user-select: none;
       touch-action: none;
       z-index: 5;
+      transition: background 0.2s ease;
     }
 
     #accelerateButton {
@@ -94,6 +100,14 @@
     #brakeButton {
       bottom: 120px; right: 20px;
       background: red;
+    }
+
+    #accelerateButton:active {
+      background: #218838;
+    }
+
+    #brakeButton:active {
+      background: #c82333;
     }
 
     /* Speed & RPM Indicators */
@@ -126,8 +140,8 @@
   </div>
 
   <!-- Accelerate & Brake Buttons -->
-  <button id="accelerateButton">Gas</button>
-  <button id="brakeButton">Brake</button>
+  <div id="accelerateButton">Gas</div>
+  <div id="brakeButton">Brake</div>
 
   <!-- Speed & RPM Indicators -->
   <div id="speedIndicator">Speed: 0 km/h</div>
