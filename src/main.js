@@ -143,7 +143,7 @@ function loadModels() {
 
   // 1) User Car (MTC)
   loader.load(
-    "MTC.glb", // Make sure your file is exactly named "MTC.glb"
+    "/MTC.glb", // Make sure your file is exactly named "MTC.glb"
     (gltf) => {
       MTC = gltf.scene;
       MTC.scale.set(2.2, 2.2, 2.2);
@@ -187,12 +187,12 @@ function loadModels() {
   );
 
   // 2) Obstacles (4 types) — Make sure file names match exactly
-  loadObstacleModel(loader, "TAXI.glb", "taxi"); // "TAXI.glb"
-  loadObstacleModel(loader, "Bus.glb", "bus", (gltfScene) => {
+  loadObstacleModel(loader, "/TAXI.glb", "taxi"); // "TAXI.glb"
+  loadObstacleModel(loader, "/Bus.glb", "bus", (gltfScene) => {
     gltfScene.scale.set(3, 3, 3); // triple size
   });
-  loadObstacleModel(loader, "LGV.glb", "lgv");
-  loadObstacleModel(loader, "Bike.glb", "bike", (gltfScene) => {
+  loadObstacleModel(loader, "/LGV.glb", "lgv");
+  loadObstacleModel(loader, "/Bike.glb", "bike", (gltfScene) => {
     gltfScene.scale.set(2, 2, 2);
     gltfScene.rotation.y = Math.PI / 2; // rotate 90°
   });
