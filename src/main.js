@@ -70,11 +70,15 @@ let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
 
 // Physics stepping
 let physicsDeltaTime = 0;
-const PHYSICS_STEP = 1 / 50;
+const PHYSICS_STEP = 1 / 50; // 20ms per step
 
 // For tracking loaded models (4 obstacles + 1 car)
 let obstaclesLoadedCount = 0;
 const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1;
+
+// Invulnerability after game start
+let invulnerable = true;
+const invulnerabilityDuration = 3000; // 3 seconds
 
 // ================== CRITICAL FUNCTIONS ==================
 
@@ -110,6 +114,12 @@ function createFallbackModel(type) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+
+  // Compute bounding sphere
+  if (mesh.geometry) {
+    mesh.geometry.computeBoundingSphere();
+  }
+  
   return mesh;
 }
 
@@ -144,6 +154,9 @@ function loadModels() {
           if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
+            if (child.geometry) {
+              child.geometry.computeBoundingSphere();
+            }
           }
         });
 
@@ -163,7 +176,7 @@ function loadModels() {
         physicsWorld.addBody(userCarBody);
 
         userCarBody.addEventListener("collide", (evt) => {
-          if (evt.body && evt.body.userData && evt.body.userData.isObstacle) {
+          if (evt.body && evt.body.userData && evt.body.userData.isObstacle && !invulnerable) {
             handleCollision();
           }
         });
@@ -181,7 +194,7 @@ function loadModels() {
     },
     (progress) => {
       if (progress.total > 0) {
-        console.log('Loading MTC:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
+        console.log('Loading MTC:', ((progress.loaded / progress.total) * 100).toFixed(2) + '%');
       }
     },
     (error) => {
@@ -203,6 +216,11 @@ function loadModels() {
           if (onLoadCallback) {
             onLoadCallback(gltf.scene);
           }
+          gltf.scene.traverse((child) => {
+            if (child.isMesh && child.geometry) {
+              child.geometry.computeBoundingSphere();
+            }
+          });
           obstacleModels[modelKey] = gltf.scene;
           console.log(`${modelKey} loaded successfully from ${url}`);
         } catch (error) {
@@ -265,8 +283,8 @@ function initScene() {
   const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
   dirLight.position.set(10, 20, 10);
   dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024;
-  dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.mapSize.width = 512; // Reduced for performance
+  dirLight.shadow.mapSize.height = 512; // Reduced for performance
   dirLight.shadow.camera.near = 1;
   dirLight.shadow.camera.far = 100;
   scene.add(dirLight);
@@ -468,7 +486,7 @@ function initObstaclePool() {
     obstacleBodies.push(body);
 
     body.addEventListener("collide", (evt) => {
-      if (evt.body === userCarBody) {
+      if (evt.body === userCarBody && !invulnerable) {
         handleCollision();
       }
     });
@@ -505,7 +523,7 @@ function spawnObstacle() {
   const lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
 
   // Ensure obstacles spawn sufficiently behind the user car to prevent immediate collisions
-  const spawnZ = userCarBody.position.z - 150 - Math.random() * 100;
+  const spawnZ = userCarBody.position.z - 150 - Math.random() * 100; // Adjust as needed
 
   obs.position.set(lane, 0.2, spawnZ);
   obs.rotation.set(0, Math.PI, 0);
@@ -519,6 +537,8 @@ function spawnObstacle() {
   obsBody.userData.speed = obstacleSpeed;
 
   obstacles.push({ mesh: obs, body: obsBody });
+
+  console.log(`Spawned obstacle '${obs.userData.type}' at (${lane}, 0.2, ${spawnZ.toFixed(2)}) with speed ${obstacleSpeed.toFixed(2)} km/h`);
 }
 
 function updateObstacles(dt) {
@@ -537,6 +557,21 @@ function updateObstacles(dt) {
     }
 
     const { mesh, body } = obstacle;
+
+    if (!mesh.geometry) {
+      console.warn(`Mesh geometry missing for obstacle at index ${i}.`);
+      obstacles.splice(i, 1);
+      continue;
+    }
+
+    try {
+      if (frustum.intersectsObject(mesh)) {
+        // Object is inside frustum
+        // Additional logic can be placed here if needed
+      }
+    } catch (error) {
+      console.error(`Error checking frustum intersection for obstacle ${i}:`, error);
+    }
 
     // Remove if they pass a certain threshold in front
     if (body.position.z > userCarBody.position.z + 50) {
@@ -559,7 +594,7 @@ function updateObstacles(dt) {
 
 // ================== COLLISIONS (WITH HEALTH BAR) ==================
 function handleCollision() {
-  if (gameOver) return;
+  if (gameOver || invulnerable) return;
 
   collisionCount++;
   totalCollisions++;
@@ -603,12 +638,17 @@ function triggerGameOver() {
   gameOver = true;
   cancelAnimationFrame(animationId);
 
-  document.getElementById("speedometer").style.display = "none";
-  document.getElementById("warningIndicator").style.display = "none";
-  document.getElementById("finalTime").textContent = formatTime(elapsedTime);
+  const speedometer = document.getElementById("speedometer");
+  const warningIndicator = document.getElementById("warningIndicator");
+  if (speedometer) speedometer.style.display = "none";
+  if (warningIndicator) warningIndicator.style.display = "none";
+
+  const finalTime = document.getElementById("finalTime");
+  if (finalTime) finalTime.textContent = formatTime(elapsedTime);
 
   startCameraOrbit(() => {
-    document.getElementById("gameOver").style.display = "block";
+    const gameOverElement = document.getElementById("gameOver");
+    if (gameOverElement) gameOverElement.style.display = "block";
   });
 }
 
@@ -618,14 +658,22 @@ function handleGameCompletion() {
   gameCompleted = true;
   cancelAnimationFrame(animationId);
 
-  document.getElementById("speedometer").style.display = "none";
-  document.getElementById("warningIndicator").style.display = "none";
+  const speedometer = document.getElementById("speedometer");
+  const warningIndicator = document.getElementById("warningIndicator");
+  if (speedometer) speedometer.style.display = "none";
+  if (warningIndicator) warningIndicator.style.display = "none";
 
-  document.getElementById("completionTime").textContent = formatTime(elapsedTime);
-  const avgSpeed = (distance / elapsedTime) * 3.6;
-  document.getElementById("gameResultStats").textContent =
-    `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
+  const completionTime = document.getElementById("completionTime");
+  if (completionTime) completionTime.textContent = formatTime(elapsedTime);
+  
+  const gameResultStats = document.getElementById("gameResultStats");
+  if (gameResultStats) {
+    const avgSpeed = (distance / elapsedTime) * 3.6;
+    gameResultStats.textContent =
+      `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
+  }
 
+  // Hide all obstacles
   obstacles.forEach(({ mesh, body }) => {
     mesh.visible = false;
     body.position.set(0, -1000, 0);
@@ -634,7 +682,8 @@ function handleGameCompletion() {
 
   startCameraOrbit(() => {
     updateLeaderboard();
-    document.getElementById("gameComplete").style.display = "block";
+    const gameCompleteElement = document.getElementById("gameComplete");
+    if (gameCompleteElement) gameCompleteElement.style.display = "block";
   });
 }
 
@@ -645,7 +694,7 @@ function startCameraOrbit(onComplete) {
 
   function orbitStep() {
     const now = Date.now();
-    const t = (now - orbitStartTime) / 2000;
+    const t = (now - orbitStartTime) / 2000; // 2 seconds duration
     if (t < 1) {
       const angle = 2 * Math.PI * t;
       const radius = 15;
@@ -758,6 +807,7 @@ function updateJoystick(e) {
 function animate() {
   if (gameOver || gameCompleted) {
     cancelAnimationFrame(animationId);
+    animationId = null; // Reset animationId
     return;
   }
 
@@ -890,11 +940,13 @@ function syncMeshesToBodies() {
     MTC.quaternion.copy(userCarBody.quaternion);
   }
 
-  obstaclePool.forEach((obs, i) => {
-    const body = obstacleBodies[i];
-    if (!obs.visible || !body) return;
-    obs.position.copy(body.position);
-    obs.quaternion.copy(body.quaternion);
+  obstacles.forEach(({ mesh, body }) => {
+    if (!mesh || !body) {
+      console.warn("Obstacle mesh or body is undefined.");
+      return;
+    }
+    mesh.position.copy(body.position);
+    mesh.quaternion.copy(body.quaternion);
   });
 }
 
@@ -934,7 +986,8 @@ function updateLeaderboard() {
       submitBtn = document.getElementById("submitNameButton");
       if (submitBtn) {
         submitBtn.addEventListener("click", () => {
-          const name = document.getElementById("nameInput").value.trim() || "Anonymous";
+          const nameInput = document.getElementById("nameInput");
+          const name = nameInput ? nameInput.value.trim() || "Anonymous" : "Anonymous";
           leaderboard.splice(position, 0, {
             name,
             time: elapsedTime,
@@ -949,9 +1002,9 @@ function updateLeaderboard() {
           if (nameInputContainer) {
             nameInputContainer.style.display = "none";
           }
-          const gameComplete = document.getElementById("gameComplete");
-          if (gameComplete) {
-            gameComplete.style.display = "none";
+          const gameCompleteElement = document.getElementById("gameComplete");
+          if (gameCompleteElement) {
+            gameCompleteElement.style.display = "none";
           }
         });
       }
@@ -1053,7 +1106,7 @@ function resetGameState() {
 
   // Offset car position so it starts well ahead of Z=0
   if (userCarBody) {
-    userCarBody.position.set(0, 1.1, 20);
+    userCarBody.position.set(0, 1.1, 20); // Ensure y=1.1 is above ground
     userCarBody.velocity.set(0, 0, 0);
     userCarBody.angularVelocity.set(0, 0, 0);
     userCarBody.quaternion.set(0, 0, 0, 1);
@@ -1063,6 +1116,7 @@ function resetGameState() {
     MTC.rotation.set(0, 0, 0);
   }
 
+  // Hide all obstacles
   obstacles.forEach(({ mesh, body }) => {
     mesh.visible = false;
     body.position.set(0, -1000, 0);
@@ -1076,6 +1130,12 @@ function resetGameState() {
   startTime = previousTime;
 
   updateBestTimeDisplay();
+
+  // Start invulnerability period
+  invulnerable = true;
+  setTimeout(() => {
+    invulnerable = false;
+  }, invulnerabilityDuration);
 }
 
 // ================== HELPERS ==================
@@ -1104,7 +1164,9 @@ function init() {
   restartButtons.forEach(btn => {
     if (btn) btn.addEventListener("click", () => {
       resetGameState();
-      animate(); // Restart the animation loop
+      if (!animationId) { // Prevent multiple loops
+        animate();
+      }
     });
   });
 
