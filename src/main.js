@@ -12,13 +12,13 @@ let userCarBody;
 let userCarLoaded = false;
 
 let physicsWorld;
-let obstacleModels = {}; // Loaded obstacle models: { taxi, bus, lgv, bike }
+let obstacleModels = {}; // Loaded obstacle models: { taxi, bus, lgv }
 let obstaclePool = [];
 let obstacleBodies = [];
 let obstacles = [];
 
-const obstacleTypes = ["taxi", "bus", "lgv", "bike"];
-const maxObstacles = 10;
+const obstacleTypes = ["taxi", "bus", "lgv"]; // Removed 'bike'
+const maxObstacles = 5; // Reduced from 10 for performance
 
 let lanePositions = [-2, 0, 2];
 
@@ -72,7 +72,7 @@ let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
 let physicsDeltaTime = 0;
 const PHYSICS_STEP = 1 / 50; // 20ms per step
 
-// For tracking loaded models (4 obstacles + 1 car)
+// For tracking loaded models (3 obstacles + 1 car)
 let obstaclesLoadedCount = 0;
 const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1;
 
@@ -96,7 +96,6 @@ function createFallbackModel(type) {
     taxi: new THREE.BoxGeometry(2, 1, 4),
     bus: new THREE.BoxGeometry(3, 2, 7),
     lgv: new THREE.BoxGeometry(2.5, 2, 5),
-    bike: new THREE.BoxGeometry(0.5, 1.5, 2),
     default: new THREE.BoxGeometry(2, 1, 4)
   };
 
@@ -104,7 +103,6 @@ function createFallbackModel(type) {
     taxi: new THREE.MeshLambertMaterial({ color: 0xFFFF00 }),
     bus: new THREE.MeshLambertMaterial({ color: 0x0000FF }),
     lgv: new THREE.MeshLambertMaterial({ color: 0xFF0000 }),
-    bike: new THREE.MeshLambertMaterial({ color: 0x00FF00 }),
     default: new THREE.MeshLambertMaterial({ color: 0x808080 })
   };
 
@@ -249,10 +247,7 @@ function loadModels() {
     gltfScene.scale.set(3, 3, 3);
   });
   loadObstacleModel(loader, "/LGV.glb", "lgv");
-  loadObstacleModel(loader, "/Bike.glb", "bike", (gltfScene) => {
-    gltfScene.scale.set(2, 2, 2);
-    gltfScene.rotation.y = Math.PI / 2;
-  });
+  // Removed: loadObstacleModel(loader, "/Bike.glb", "bike", ...);
 }
 
 // ================== SCENE SETUP ==================
@@ -637,6 +632,7 @@ function triggerGameOver() {
   if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(animationId);
+  animationId = null; // Reset animationId
 
   const speedometer = document.getElementById("speedometer");
   const warningIndicator = document.getElementById("warningIndicator");
@@ -657,6 +653,7 @@ function handleGameCompletion() {
   if (gameCompleted) return;
   gameCompleted = true;
   cancelAnimationFrame(animationId);
+  animationId = null; // Reset animationId
 
   const speedometer = document.getElementById("speedometer");
   const warningIndicator = document.getElementById("warningIndicator");
