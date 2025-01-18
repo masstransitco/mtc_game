@@ -1,252 +1,51 @@
-/*****************************************************
- * main.js (Full Example) - Prevents "Flying Car" Issue
- *****************************************************/
+// ========== Imports ==========
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import * as CANNON from "cannon-es";
 
-// ----------- Imports -----------
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import * as CANNON from 'cannon-es';
-
-// ----------- GLOBALS -----------
+// ========== GLOBALS ==========
 let scene, camera, renderer;
-let environmentGroup;
-let MTC; // User's car mesh
-let userCarBody;
-let userCarLoaded = false;
-
 let physicsWorld;
-let obstacleModels = {};
-let obstaclePool = [];
-let obstacleBodies = [];
-let obstacles = [];
+let carMesh, carBody;
+let joystickBase, joystickKnob;
+let joystickActive = false;
+let joystickMaxDistance = 0;
+let joystickX = 0, joystickY = 0;
 
-const obstacleTypes = ["taxi", "bus", "lgv"];
-const maxObstacles = 3; 
-
-// Lane positions in X (adjust if needed)
-let lanePositions = [-2, 0, 2];
-
-// Player inputs
 let accelerateInput = false;
 let decelerateInput = false;
 let moveLeft = false;
 let moveRight = false;
 
-// Speeds
-const baseVelocity = 6.944; // ~25 km/h
-const minVelocity = 0.278;  // 1 km/h
-const maxVelocity = 44.444; // 160 km/h
+// We’ll maintain a simple base velocity for forward motion
+// and some min/max velocities for demonstration
+const baseVelocity = 5;   // ~some baseline speed in +Z
+const minVelocity = 1;
+const maxVelocity = 20;
 
-// Collisions, game states
-let collisionCount = 0;
-let maxCollisions = 5;
-let gameOver = false;
-let gameCompleted = false;
-
-// Distances, scoreboard
-let distance = 0;
-let scoreboard = 0;
-let totalCollisions = 0;
-let elapsedTime = 0;
-let startTime = 0;
 let previousTime = 0;
 let animationId;
 
-// Obstacle spawning
-let obstacleFrequency = 3; // spawn every 3s
-let obstacleTimer = 0;
-let difficultyRamp = 0;
-const completionDistance = 2000;
+// ========== INIT ==========
+function init() {
+  initScene();
+  initPhysics();
+  initEnvironment();
+  loadCarModel();   // or create fallback box
 
-// Orbit camera effect
-let orbitActive = false;
-let orbitStartTime = 0;
+  initJoystick();
+  window.addEventListener("resize", onWindowResize, false);
 
-// Joystick
-let joystickBase, joystickKnob;
-let joystickActive = false;
-let joystickMaxDistance = 0;
-let joystickX = 0;
-let joystickY = 0;
-
-// Leaderboard
-let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
-
-// Physics stepping
-let physicsDeltaTime = 0;
-const PHYSICS_STEP = 1 / 60;
-
-let obstaclesLoadedCount = 0;
-const TOTAL_MODELS_TO_LOAD = obstacleTypes.length + 1; // 3 obstacles + 1 user car
-
-// Invulnerability after game start
-let invulnerable = true;
-const invulnerabilityDuration = 3000;
-
-// ----------- CRITICAL UTILS -----------
-function getObstacleFromPool() {
-  for (let i = 0; i < obstaclePool.length; i++) {
-    if (!obstaclePool[i].visible) {
-      return i;
-    }
-  }
-  return -1;
+  // Start the render loop once the DOM is ready
+  previousTime = Date.now();
+  animate();
 }
 
-function maybeInitObstaclePool() {
-  if (obstaclesLoadedCount >= TOTAL_MODELS_TO_LOAD) {
-    console.log("All models loaded. Initializing obstacle pool...");
-    initObstaclePool();
-  }
-}
-
-function createFallbackModel(type) {
-  const geometries = {
-    taxi: new THREE.BoxGeometry(2, 1, 4),
-    bus: new THREE.BoxGeometry(3, 2, 7),
-    lgv: new THREE.BoxGeometry(2.5, 2, 5),
-    default: new THREE.BoxGeometry(2, 1, 4)
-  };
-
-  const materials = {
-    taxi: new THREE.MeshLambertMaterial({ color: 0xffff00 }),
-    bus: new THREE.MeshLambertMaterial({ color: 0x0000ff }),
-    lgv: new THREE.MeshLambertMaterial({ color: 0xff0000 }),
-    default: new THREE.MeshLambertMaterial({ color: 0x808080 })
-  };
-
-  const geometry = geometries[type] || geometries.default;
-  const material = materials[type] || materials.default;
-  
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-function handleModelLoadError(type) {
-  console.log(`Using fallback for ${type}`);
-  const fallbackModel = createFallbackModel(type);
-  obstacleModels[type] = fallbackModel;
-  obstaclesLoadedCount++;
-  maybeInitObstaclePool();
-}
-
-// ----------- LOADING MODELS -----------
-function loadModels() {
-  const loader = new GLTFLoader();
-
-  // --------- Load user car (No bounding box offset => no flying) ---------
-  loader.load(
-    "/MTC.glb",
-    (gltf) => {
-      try {
-        // Add user car mesh
-        MTC = gltf.scene;
-        MTC.scale.set(2, 2, 2);
-        environmentGroup.add(MTC);
-
-        MTC.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-
-        // Create a simple Box shape for the physics body
-        // Hardcode approximate halfExtents
-        const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
-
-        // Place it slightly above ground to avoid intersections
-        userCarBody = new CANNON.Body({
-          mass: 1000,
-          shape: carShape,
-          position: new CANNON.Vec3(0, 0.51, 0), 
-          linearDamping: 0.3,
-          angularDamping: 0.6,
-        });
-        userCarBody.fixedRotation = true;
-        userCarBody.updateMassProperties();
-        physicsWorld.addBody(userCarBody);
-
-        // Match the visual model's position with the physics body
-        MTC.position.set(0, 0.51, 0);
-
-        userCarBody.addEventListener("collide", (evt) => {
-          if (evt.body && evt.body.userData && evt.body.userData.isObstacle && !invulnerable) {
-            handleCollision();
-          }
-        });
-
-        userCarLoaded = true;
-        obstaclesLoadedCount++;
-        maybeInitObstaclePool();
-      } catch (error) {
-        console.error("Error processing MTC model:", error);
-        // fallback
-        MTC = createFallbackModel("taxi");
-        environmentGroup.add(MTC);
-        userCarLoaded = true;
-        obstaclesLoadedCount++;
-        maybeInitObstaclePool();
-      }
-    },
-    undefined,
-    (error) => {
-      console.error("Error loading MTC.glb:", error);
-      // fallback
-      MTC = createFallbackModel("taxi");
-      environmentGroup.add(MTC);
-      userCarLoaded = true;
-      obstaclesLoadedCount++;
-      maybeInitObstaclePool();
-    }
-  );
-
-  // Helper for loading obstacle models
-  function loadObstacleModel(url, modelKey, onLoadCallback) {
-    loader.load(
-      url,
-      (gltf) => {
-        try {
-          if (onLoadCallback) onLoadCallback(gltf.scene);
-          gltf.scene.traverse((child) => {
-            if (child.isMesh && child.geometry) {
-              child.geometry.computeBoundingSphere();
-            }
-          });
-          obstacleModels[modelKey] = gltf.scene;
-          console.log(`${modelKey} loaded successfully from ${url}`);
-        } catch (error) {
-          console.error(`Error processing ${modelKey} model:`, error);
-          handleModelLoadError(modelKey);
-          return;
-        }
-        obstaclesLoadedCount++;
-        maybeInitObstaclePool();
-      },
-      undefined,
-      (error) => {
-        console.error(`Error loading ${url}:`, error);
-        handleModelLoadError(modelKey);
-      }
-    );
-  }
-
-  // Load obstacles
-  loadObstacleModel("/TAXI.glb", "taxi");
-  loadObstacleModel("/Bus.glb", "bus", (scene) => {
-    scene.scale.set(3, 3, 3);
-  });
-  loadObstacleModel("/LGV.glb", "lgv");
-}
-
-// ----------- SCENE & PHYSICS -----------
 function initScene() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1C262D);
+  scene.background = new THREE.Color(0x87CEEB); // light sky
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
   camera.position.set(0, 5, -15);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -254,11 +53,8 @@ function initScene() {
   renderer.shadowMap.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  environmentGroup = new THREE.Group();
-  scene.add(environmentGroup);
-
-  // Lights
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  // Add some light
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -266,11 +62,7 @@ function initScene() {
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.width = 512;
   dirLight.shadow.mapSize.height = 512;
-  dirLight.shadow.camera.near = 1;
-  dirLight.shadow.camera.far = 200;
   scene.add(dirLight);
-
-  window.addEventListener("resize", onWindowResize);
 }
 
 function onWindowResize() {
@@ -282,309 +74,96 @@ function onWindowResize() {
 function initPhysics() {
   physicsWorld = new CANNON.World({
     gravity: new CANNON.Vec3(0, -9.82, 0),
-    broadphase: new CANNON.NaiveBroadphase(),
-    allowSleep: true
   });
   physicsWorld.solver.iterations = 10;
-  physicsWorld.defaultContactMaterial.friction = 0.6;
 
-  // Static ground plane
-  const groundBody = new CANNON.Body({
-    mass: 0,
-    shape: new CANNON.Plane()
-  });
-  // Rotate so normal = +Y
+  // Create a static plane for the ground
+  const groundBody = new CANNON.Body({ mass: 0 });
+  const groundShape = new CANNON.Plane();
+  groundBody.addShape(groundShape);
+  // Rotate so plane is horizontal
   groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
   physicsWorld.addBody(groundBody);
 }
 
-// ----------- ENVIRONMENT -----------
-function setupEnvironment() {
-  const roadWidth = 6;
-  const roadLength = 2000;
-  const roadGeom = new THREE.PlaneGeometry(roadWidth, roadLength);
-  const roadMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
-  const road = new THREE.Mesh(roadGeom, roadMat);
-  road.rotation.x = -Math.PI / 2;
-  road.receiveShadow = true;
-  environmentGroup.add(road);
-
-  // Lane markings
-  createLaneMarkingsInstanced(roadLength, lanePositions);
-
-  // Side barriers
-  const barrierHeight = 1.2;
-  const barrierThickness = 0.2;
-  const barrierGeom = new THREE.BoxGeometry(barrierThickness, barrierHeight, roadLength);
-  const barrierMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-
-  const barrierLeft = new THREE.Mesh(barrierGeom, barrierMat);
-  barrierLeft.position.set(-roadWidth / 2 - barrierThickness / 2, barrierHeight / 2, 0);
-  barrierLeft.castShadow = true;
-  barrierLeft.receiveShadow = true;
-  environmentGroup.add(barrierLeft);
-
-  const barrierRight = new THREE.Mesh(barrierGeom, barrierMat);
-  barrierRight.position.set(roadWidth / 2 + barrierThickness / 2, barrierHeight / 2, 0);
-  barrierRight.castShadow = true;
-  barrierRight.receiveShadow = true;
-  environmentGroup.add(barrierRight);
+function initEnvironment() {
+  // Simple ground plane in Three.js (visual)
+  const groundSize = 200;
+  const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+  const groundMesh = new THREE.Mesh(groundGeom, groundMat);
+  groundMesh.rotation.x = -Math.PI / 2;
+  groundMesh.receiveShadow = true;
+  scene.add(groundMesh);
 }
 
-function createLaneMarkingsInstanced(roadLength, lanes) {
-  const spacing = 10;
-  const lineLength = 1;
-  const markerGeom = new THREE.PlaneGeometry(0.08, lineLength);
-  markerGeom.rotateX(-Math.PI / 2);
-  const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+function loadCarModel() {
+  // Option A: Load a GLTF car
+  const loader = new GLTFLoader();
+  loader.load(
+    "/MTC.glb",
+    (gltf) => {
+      // Simplify the car: just place it above the ground
+      carMesh = gltf.scene;
+      carMesh.scale.set(2, 2, 2);
+      scene.add(carMesh);
 
-  const numMarkersPerLane = Math.floor(roadLength / spacing);
-  const totalMarkers = numMarkersPerLane * lanes.length;
+      carMesh.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
 
-  const instanced = new THREE.InstancedMesh(markerGeom, markerMat, totalMarkers);
-  let index = 0;
+      // Create a simple box shape in Cannon
+      const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)); 
+      // Place it so it’s definitely above the ground
+      carBody = new CANNON.Body({
+        mass: 100, 
+        shape: carShape,
+        position: new CANNON.Vec3(0, 1.1, 0), 
+        linearDamping: 0.3,
+        angularDamping: 0.6,
+      });
+      carBody.fixedRotation = true;
+      physicsWorld.addBody(carBody);
 
-  for (let z = -roadLength / 2; z < roadLength / 2; z += spacing) {
-    for (let laneX of lanes) {
-      const dummy = new THREE.Object3D();
-      dummy.position.set(laneX, 0.01, z);
-      dummy.updateMatrix();
-      instanced.setMatrixAt(index++, dummy.matrix);
+      // Align initial position
+      carMesh.position.set(0, 1.1, 0);
+    },
+    undefined,
+    (err) => {
+      console.error("Error loading MTC.glb:", err);
+      // fallback
+      createFallbackCar();
     }
-  }
-  environmentGroup.add(instanced);
+  );
 }
 
-// ----------- OBSTACLE POOL -----------
-function initObstaclePool() {
-  console.log("Initializing obstacle pool...");
-  for (let i = 0; i < maxObstacles; i++) {
-    const type = obstacleTypes[i % obstacleTypes.length];
-    const model = obstacleModels[type];
-    if (!model) {
-      console.warn(`Model for obstacle type '${type}' is not loaded. Skipping.`);
-      continue;
-    }
+// or fallback: just a red box if the GLTF fails
+function createFallbackCar() {
+  const boxGeom = new THREE.BoxGeometry(2, 1, 4);
+  const boxMat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+  carMesh = new THREE.Mesh(boxGeom, boxMat);
+  carMesh.castShadow = true;
+  scene.add(carMesh);
 
-    const clone = model.clone(true);
-    clone.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        child.userData.isObstacle = true;
-      }
-    });
-
-    clone.visible = false;
-    environmentGroup.add(clone);
-    obstaclePool.push(clone);
-
-    // Cannon body
-    const boundingBox = new THREE.Box3().setFromObject(clone);
-    const size = new THREE.Vector3();
-    boundingBox.getSize(size);
-
-    const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
-    const body = new CANNON.Body({
-      mass: 500,
-      shape: new CANNON.Box(halfExtents),
-      linearDamping: 0.3,
-      angularDamping: 0.8
-    });
-    body.fixedRotation = true;
-    body.updateMassProperties();
-    body.userData = { isObstacle: true, type };
-    physicsWorld.addBody(body);
-    obstacleBodies.push(body);
-
-    clone.userData.physicsBody = body;
-    body.addEventListener("collide", (evt) => {
-      if (evt.body === userCarBody && !invulnerable) {
-        handleCollision();
-      }
-    });
-  }
-  console.log("Obstacle pool created:", obstaclePool.length);
-}
-
-// ----------- SPAWN & UPDATE OBSTACLES -----------
-function spawnObstacle() {
-  if (!userCarLoaded || obstaclePool.length === 0) return;
-
-  const poolIndex = getObstacleFromPool();
-  if (poolIndex === -1) return;
-
-  const obs = obstaclePool[poolIndex];
-  const obsBody = obstacleBodies[poolIndex];
-  if (!obs || !obsBody) return;
-
-  const userZ = userCarBody.position.z;
-  const spawnBehind = Math.random() < 0.5; 
-
-  let lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
-  let spawnZ = 0;
-
-  if (spawnBehind) {
-    spawnZ = userZ - (50 + Math.random() * 50);
-  } else {
-    spawnZ = userZ + (50 + Math.random() * 100);
-  }
-
-  obs.visible = true;
-  obs.position.set(lane, 0.2, spawnZ);
-  obs.rotation.set(0, 0, 0);
-
-  obsBody.position.set(lane, 0.2, spawnZ);
-  obsBody.velocity.set(0, 0, 0);
-  obsBody.angularVelocity.set(0, 0, 0);
-  obsBody.quaternion.setFromEuler(0, 0, 0);
-
-  let obstacleSpeed;
-  if (spawnBehind) {
-    obstacleSpeed = 8.33 + difficultyRamp + Math.random() * 5; 
-  } else {
-    obstacleSpeed = 2.77 + difficultyRamp + Math.random() * 5; 
-  }
-  obsBody.userData.speed = obstacleSpeed;
-  obsBody.velocity.z = obstacleSpeed;
-
-  obstacles.push({ mesh: obs, body: obsBody });
-}
-
-function updateObstacles(dt) {
-  const userZ = userCarBody.position.z;
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    const { mesh, body } = obstacles[i];
-    if (!mesh || !body) {
-      obstacles.splice(i, 1);
-      continue;
-    }
-    if (body.position.z > userZ + 2000 || body.position.z < userZ - 2000) {
-      mesh.visible = false;
-      body.position.set(0, -1000, 0);
-      obstacles.splice(i, 1);
-    }
-  }
-}
-
-// ----------- COLLISIONS -----------
-function handleCollision() {
-  if (gameOver || invulnerable) return;
-
-  collisionCount++;
-  totalCollisions++;
-  console.log("Collision #", collisionCount);
-
-  updateHealthBar();
-  if (collisionCount >= maxCollisions) {
-    triggerGameOver();
-  } else {
-    displayWarningIndicator();
-  }
-}
-
-function updateHealthBar() {
-  const healthLeft = maxCollisions - collisionCount;
-  const percentage = Math.max((healthLeft / maxCollisions) * 100, 0);
-  const bar = document.getElementById("healthBar");
-  if (bar) {
-    bar.style.width = percentage + "%";
-  }
-}
-
-function displayWarningIndicator() {
-  const indicator = document.getElementById("warningIndicator");
-  if (indicator) {
-    indicator.style.display = "block";
-    indicator.classList.add("flashing");
-    indicator.addEventListener('animationend', () => {
-      indicator.classList.remove("flashing");
-    }, { once: true });
-  }
-}
-
-// ----------- GAME OVER / COMPLETION -----------
-function triggerGameOver() {
-  if (gameOver) return;
-  gameOver = true;
-  cancelAnimationFrame(animationId);
-  animationId = null;
-
-  const speedometer = document.getElementById("speedometer");
-  const warningIndicator = document.getElementById("warningIndicator");
-  if (speedometer) speedometer.style.display = "none";
-  if (warningIndicator) warningIndicator.style.display = "none";
-
-  const finalTime = document.getElementById("finalTime");
-  if (finalTime) finalTime.textContent = formatTime(elapsedTime);
-
-  startCameraOrbit(() => {
-    const gameOverElement = document.getElementById("gameOver");
-    if (gameOverElement) gameOverElement.style.display = "block";
+  // Cannon shape
+  const halfExtents = new CANNON.Vec3(1, 0.5, 2);
+  carBody = new CANNON.Body({
+    mass: 100,
+    shape: new CANNON.Box(halfExtents),
+    position: new CANNON.Vec3(0, 1.1, 0),
+    linearDamping: 0.3,
+    angularDamping: 0.6,
   });
+  carBody.fixedRotation = true;
+  physicsWorld.addBody(carBody);
+
+  carMesh.position.set(0, 1.1, 0);
 }
 
-function handleGameCompletion() {
-  if (gameCompleted) return;
-  gameCompleted = true;
-  cancelAnimationFrame(animationId);
-  animationId = null;
-
-  const speedometer = document.getElementById("speedometer");
-  const warningIndicator = document.getElementById("warningIndicator");
-  if (speedometer) speedometer.style.display = "none";
-  if (warningIndicator) warningIndicator.style.display = "none";
-
-  const completionTime = document.getElementById("completionTime");
-  if (completionTime) completionTime.textContent = formatTime(elapsedTime);
-
-  const avgSpeed = (distance / elapsedTime) * 3.6;
-  const gameResultStats = document.getElementById("gameResultStats");
-  if (gameResultStats) {
-    gameResultStats.textContent =
-      `Collisions: ${totalCollisions}, Avg Speed: ${avgSpeed.toFixed(1)} km/h, Score: ${scoreboard}`;
-  }
-
-  obstacles.forEach(({ mesh, body }) => {
-    mesh.visible = false;
-    body.position.set(0, -1000, 0);
-  });
-  obstacles = [];
-
-  startCameraOrbit(() => {
-    updateLeaderboard();
-    const gameCompleteElement = document.getElementById("gameComplete");
-    if (gameCompleteElement) gameCompleteElement.style.display = "block";
-  });
-}
-
-// ----------- CAMERA ORBIT -----------
-function startCameraOrbit(onComplete) {
-  orbitActive = true;
-  orbitStartTime = Date.now();
-
-  function orbitStep() {
-    const now = Date.now();
-    const t = (now - orbitStartTime) / 2000;
-    if (t < 1) {
-      const angle = 2 * Math.PI * t;
-      const radius = 15;
-      let center = new THREE.Vector3(0, 0, 0);
-      if (MTC) center.copy(MTC.position);
-      camera.position.x = center.x + Math.cos(angle) * radius;
-      camera.position.z = center.z + Math.sin(angle) * radius;
-      camera.position.y = 5 + 2 * Math.sin(t * Math.PI);
-      camera.lookAt(center);
-      requestAnimationFrame(orbitStep);
-    } else {
-      orbitActive = false;
-      if (onComplete) onComplete();
-    }
-  }
-  orbitStep();
-}
-
-// ----------- JOYSTICK -----------
+// ========== JOYSTICK SETUP ==========
 function initJoystick() {
   joystickBase = document.getElementById("joystick-base");
   joystickKnob = document.getElementById("joystick-knob");
@@ -592,6 +171,7 @@ function initJoystick() {
 
   joystickMaxDistance = joystickBase.offsetWidth / 2;
 
+  // Clean up old events
   joystickBase.removeEventListener("touchstart", onJoystickStart);
   joystickBase.removeEventListener("touchmove", onJoystickMove);
   joystickBase.removeEventListener("touchend", onJoystickEnd);
@@ -599,6 +179,7 @@ function initJoystick() {
   document.removeEventListener("mousemove", onJoystickMove);
   document.removeEventListener("mouseup", onJoystickEnd);
 
+  // Add new events
   joystickBase.addEventListener("touchstart", onJoystickStart, { passive: false });
   joystickBase.addEventListener("touchmove", onJoystickMove, { passive: false });
   joystickBase.addEventListener("touchend", onJoystickEnd, { passive: false });
@@ -634,6 +215,7 @@ function onJoystickEnd(e) {
     joystickY = 0;
   }, 300);
 
+  // Reset inputs
   accelerateInput = false;
   decelerateInput = false;
   moveLeft = false;
@@ -641,9 +223,9 @@ function onJoystickEnd(e) {
 }
 
 /**
- * For "pull backward" => accelerate => +Z
- * We'll say if joystickY > 0.2 => accelerate
- * If joystickY < -0.2 => decelerate
+ * For demonstration:
+ * - Pull "down" => we treat that as +Z forward (accelerate)
+ * - Pull "up" => -Z (decelerate)
  */
 function updateJoystick(e) {
   const rect = joystickBase.getBoundingClientRect();
@@ -665,388 +247,95 @@ function updateJoystick(e) {
   joystickX = (clampedDist * Math.cos(angle)) / joystickMaxDistance;
   joystickY = (clampedDist * Math.sin(angle)) / joystickMaxDistance;
 
-  const knobX = joystickX * joystickMaxDistance * 0.6;
-  const knobY = joystickY * joystickMaxDistance * 0.6;
-  joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+  // Move knob
+  joystickKnob.style.transform = `translate(${joystickX * joystickMaxDistance * 0.6}px, ${joystickY * joystickMaxDistance * 0.6}px)`;
 
   const deadZone = 0.2;
-  accelerateInput = joystickY > deadZone;      // pull backward => +Z
-  decelerateInput = joystickY < -deadZone;     // push forward => -Z
+  // interpret joystick Y
+  accelerateInput = joystickY > deadZone;   // pull downward => accelerate +Z
+  decelerateInput = joystickY < -deadZone;  // push upward => decelerate
   moveLeft = joystickX < -deadZone;
   moveRight = joystickX > deadZone;
 }
 
-// ----------- MAIN ANIMATION -----------
+// ========== ANIMATION LOOP ==========
 function animate() {
-  if (gameOver || gameCompleted) {
-    cancelAnimationFrame(animationId);
-    animationId = null;
-    return;
-  }
   animationId = requestAnimationFrame(animate);
 
   const now = Date.now();
   const dt = (now - previousTime) / 1000;
   previousTime = now;
 
-  physicsDeltaTime += dt;
-  while (physicsDeltaTime >= PHYSICS_STEP) {
-    updatePhysics(PHYSICS_STEP);
-    physicsDeltaTime -= PHYSICS_STEP;
-  }
+  // Step physics
+  physicsWorld.step(1 / 60, dt, 3);
 
-  updateVisuals(dt);
-
-  // Spawn obstacles
-  obstacleTimer += dt;
-  if (obstacleTimer >= obstacleFrequency) {
-    spawnObstacle();
-    obstacleTimer = 0;
-  }
-
+  updateLogic(dt);
   renderer.render(scene, camera);
 }
 
-function updatePhysics(dt) {
-  physicsWorld.step(dt);
+function updateLogic(dt) {
+  // If we haven't loaded the car yet, skip
+  if (!carBody) return;
 
-  if (userCarBody) {
-    let currentVelZ = userCarBody.velocity.z;
+  // We'll store velocity in a local var
+  const vx = carBody.velocity.x;
+  let vz = carBody.velocity.z;
 
-    // If pulling joystick "backward" => accelerate in +Z
-    if (accelerateInput) {
-      currentVelZ = Math.min(currentVelZ + 5, maxVelocity);
-    } else if (decelerateInput) {
-      currentVelZ = Math.max(currentVelZ - 5, minVelocity);
-    } else {
-      // Approach baseVelocity
-      if (currentVelZ > baseVelocity) {
-        currentVelZ = Math.max(currentVelZ - 2 * dt, baseVelocity);
-      } else if (currentVelZ < baseVelocity) {
-        currentVelZ = Math.min(currentVelZ + 2 * dt, baseVelocity);
-      }
-    }
-    userCarBody.velocity.z = currentVelZ;
-
-    // Side movement
-    if (moveLeft) {
-      userCarBody.velocity.x = -5;
-    } else if (moveRight) {
-      userCarBody.velocity.x = 5;
-    } else {
-      userCarBody.velocity.x *= 0.9;
-      if (Math.abs(userCarBody.velocity.x) < 0.05) {
-        userCarBody.velocity.x = 0;
-      }
+  // Move forward/back in +Z/-Z
+  if (accelerateInput) {
+    // accelerate forward
+    vz = Math.min(vz + 10 * dt, maxVelocity);
+  } else if (decelerateInput) {
+    // decelerate => reduce Z velocity
+    vz = Math.max(vz - 10 * dt, minVelocity);
+  } else {
+    // approach base velocity
+    if (vz > baseVelocity) {
+      vz -= 2 * dt;
+    } else if (vz < baseVelocity) {
+      vz += 2 * dt;
     }
   }
 
-  syncMeshesToBodies();
-  updateObstacles(dt);
-}
-
-function updateVisuals(dt) {
-  elapsedTime = (Date.now() - startTime) / 1000;
-  const timeElement = document.getElementById("time");
-  if (timeElement) {
-    timeElement.textContent = `Time: ${formatTime(elapsedTime)}`;
-  }
-
-  difficultyRamp = elapsedTime * 0.2;
-
-  if (userCarBody) {
-    distance = Math.max(0, userCarBody.position.z);
-  }
-  scoreboard = Math.floor(distance);
-
-  const distanceElement = document.getElementById("distance");
-  if (distanceElement) {
-    distanceElement.textContent = `Distance: ${distance.toFixed(1)} m`;
-  }
-
-  const scoreElement = document.getElementById("score");
-  if (scoreElement) {
-    scoreElement.textContent = `Score: ${scoreboard}`;
-  }
-
-  if (distance >= completionDistance) {
-    handleGameCompletion();
-    return;
-  }
-
-  // Speedometer
-  if (userCarBody) {
-    const speedKmh = Math.abs(userCarBody.velocity.length()) * 3.6;
-    const speedometer = document.getElementById("speedometer");
-    if (speedometer) {
-      speedometer.textContent = `${speedKmh.toFixed(0)} km/h`;
+  // Side movement
+  let newVx = vx;
+  if (moveLeft) {
+    newVx = -5;
+  } else if (moveRight) {
+    newVx = 5;
+  } else {
+    // damp side
+    newVx *= 0.9;
+    if (Math.abs(newVx) < 0.05) {
+      newVx = 0;
     }
   }
 
-  // Slight tilt
-  if (MTC) {
-    if (moveLeft) {
-      MTC.rotation.z = 0.1;
-    } else if (moveRight) {
-      MTC.rotation.z = -0.1;
-    } else {
-      MTC.rotation.z *= 0.9;
-      MTC.rotation.z = THREE.MathUtils.clamp(MTC.rotation.z, -0.2, 0.2);
-    }
-  }
+  // Assign updated velocities
+  carBody.velocity.x = newVx;
+  carBody.velocity.z = vz;
 
-  if (!orbitActive) {
-    updateCamera();
-  }
-}
+  // Sync Three mesh to Cannon body
+  carMesh.position.copy(carBody.position);
+  carMesh.quaternion.copy(carBody.quaternion);
 
-function syncMeshesToBodies() {
-  if (MTC && userCarBody) {
-    MTC.position.copy(userCarBody.position);
-    MTC.quaternion.copy(userCarBody.quaternion);
-  }
-
-  obstacles.forEach(({ mesh, body }) => {
-    if (mesh && body) {
-      mesh.position.copy(body.position);
-      mesh.quaternion.copy(body.quaternion);
-    }
-  });
+  // Basic camera follow
+  updateCamera();
 }
 
 function updateCamera() {
-  if (!userCarBody) return;
+  if (!carBody) return;
+  // place camera behind car
   const desiredPos = new THREE.Vector3(
-    userCarBody.position.x,
+    carBody.position.x,
     5,
-    userCarBody.position.z - 15
+    carBody.position.z - 15
   );
   camera.position.lerp(desiredPos, 0.1);
-  camera.lookAt(
-    userCarBody.position.x,
-    userCarBody.position.y,
-    userCarBody.position.z
-  );
+  camera.lookAt(carBody.position.x, carBody.position.y, carBody.position.z);
 }
 
-// ----------- LEADERBOARD & UI -----------
-function updateLeaderboard() {
-  let position = null;
-  for (let i = 0; i < leaderboard.length; i++) {
-    if (elapsedTime < leaderboard[i].time) {
-      position = i;
-      break;
-    }
-  }
-  if (leaderboard.length < 10 && position === null) {
-    position = leaderboard.length;
-  }
-  if (position !== null) {
-    const nameInputContainer = document.getElementById("nameInputContainer");
-    if (nameInputContainer) {
-      nameInputContainer.style.display = "block";
-    }
-    let submitBtn = document.getElementById("submitNameButton");
-    if (submitBtn) {
-      submitBtn.replaceWith(submitBtn.cloneNode(true));
-      submitBtn = document.getElementById("submitNameButton");
-      if (submitBtn) {
-        submitBtn.addEventListener("click", () => {
-          const nameInput = document.getElementById("nameInput");
-          const name = nameInput ? nameInput.value.trim() || "Anonymous" : "Anonymous";
-          leaderboard.splice(position, 0, {
-            name,
-            time: elapsedTime,
-            collisions: totalCollisions,
-            score: scoreboard,
-          });
-          if (leaderboard.length > 10) {
-            leaderboard.pop();
-          }
-          localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
-          displayLeaderboard();
-          if (nameInputContainer) {
-            nameInputContainer.style.display = "none";
-          }
-          const gameCompleteElement = document.getElementById("gameComplete");
-          if (gameCompleteElement) {
-            gameCompleteElement.style.display = "none";
-          }
-        });
-      }
-    }
-  } else {
-    displayLeaderboard();
-  }
-  updateBestTimeDisplay();
-}
-
-function displayLeaderboard() {
-  const list = document.getElementById("leaderboardList");
-  if (!list) return;
-  list.innerHTML = "";
-  leaderboard.forEach((entry, index) => {
-    const li = document.createElement("li");
-    let medal = "";
-    if (index === 0) medal = "🥇";
-    else if (index === 1) medal = "🥈";
-    else if (index === 2) medal = "🥉";
-    else medal = `${index + 1}.`;
-
-    li.innerHTML = `<span>${medal} ${entry.name}</span>
-                    <span>Time: ${formatTime(entry.time)}, Collisions: ${entry.collisions || 0}, Score: ${entry.score || 0}</span>`;
-    list.appendChild(li);
-  });
-}
-
-function updateBestTimeDisplay() {
-  const bestTimeElement = document.getElementById("bestTime");
-  if (!bestTimeElement) return;
-  if (leaderboard.length > 0) {
-    bestTimeElement.textContent = `Best Time: ${formatTime(leaderboard[0].time)}`;
-  } else {
-    bestTimeElement.textContent = "Best Time: N/A";
-  }
-}
-
-// ----------- GAME CONTROLS -----------
-function startGame() {
-  const startScreen = document.getElementById("start-screen");
-  const instructions = document.getElementById("instructions");
-  if (startScreen) startScreen.style.display = "none";
-  if (instructions) instructions.style.display = "none";
-
-  startCameraAnimation();
-}
-
-function startCameraAnimation() {
-  const startPos = new THREE.Vector3(0, 30, -80);
-  const endPos = new THREE.Vector3(0, 5, -15);
-  const duration = 1500;
-  const camStart = Date.now();
-
-  camera.position.copy(startPos);
-  camera.lookAt(0, 0, 0);
-
-  function camAnim() {
-    const now = Date.now();
-    const t = Math.min((now - camStart) / duration, 1);
-    camera.position.lerpVectors(startPos, endPos, t);
-    camera.lookAt(0, 0, 0);
-    if (t < 1) {
-      requestAnimationFrame(camAnim);
-    } else {
-      resetGameState();
-      animate();
-    }
-  }
-  camAnim();
-}
-
-function resetGameState() {
-  collisionCount = 0;
-  totalCollisions = 0;
-  distance = 0;
-  scoreboard = 0;
-  gameOver = false;
-  gameCompleted = false;
-  orbitActive = false;
-
-  const gameOverElement = document.getElementById("gameOver");
-  const gameCompleteElement = document.getElementById("gameComplete");
-  const warningIndicator = document.getElementById("warningIndicator");
-  if (gameOverElement) gameOverElement.style.display = "none";
-  if (gameCompleteElement) gameCompleteElement.style.display = "none";
-  if (warningIndicator) {
-    warningIndicator.style.display = "none";
-    warningIndicator.classList.remove("flashing");
-    warningIndicator.style.animation = "";
-  }
-
-  updateHealthBar();
-
-  // Reset user car to ground
-  if (userCarBody) {
-    // If our box shape is halfExtents(1,0.5,2), place it just above y=0
-    userCarBody.position.set(0, 0.51, 0);
-    userCarBody.velocity.set(0, 0, 0);
-    userCarBody.angularVelocity.set(0, 0, 0);
-    userCarBody.quaternion.set(0, 0, 0, 1);
-  }
-  if (MTC) {
-    MTC.position.set(0, 0.51, 0);
-    MTC.rotation.set(0, 0, 0);
-  }
-
-  // Hide all obstacles
-  obstacles.forEach(({ mesh, body }) => {
-    mesh.visible = false;
-    body.position.set(0, -1000, 0);
-  });
-  obstacles = [];
-
-  obstacleTimer = 0;
-  difficultyRamp = 0;
-
-  previousTime = Date.now();
-  startTime = previousTime;
-
-  updateBestTimeDisplay();
-
-  // Invulnerable for a few seconds
-  invulnerable = true;
-  setTimeout(() => {
-    invulnerable = false;
-  }, invulnerabilityDuration);
-}
-
-function formatTime(sec) {
-  const mins = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  const ms = Math.floor((sec % 1) * 1000);
-  return `${mins}:${s < 10 ? "0" : ""}${s}.${ms}`;
-}
-
-// ----------- INITIALIZATION -----------
-function init() {
-  initScene();
-  initPhysics();
-  loadModels();
-  setupEnvironment();
-  initJoystick();
-
-  // UI
-  const playButton = document.getElementById("play-button");
-  const restartButtons = document.querySelectorAll("#restartButton, #restartButtonComplete");
-  const continueLinks = document.querySelectorAll("#continueLink, #continueLinkComplete");
-
-  if (playButton) {
-    playButton.addEventListener("click", startGame);
-  }
-  restartButtons.forEach(btn => {
-    if (btn) {
-      btn.addEventListener("click", () => {
-        resetGameState();
-        if (!animationId) {
-          animate();
-        }
-      });
-    }
-  });
-  continueLinks.forEach(link => {
-    if (link) {
-      link.addEventListener("click", () => {
-        // Example link
-        window.location.href = "https://air.zone";
-      });
-    }
-  });
-
-  displayLeaderboard();
-  updateBestTimeDisplay();
-}
-
-// Start once DOM is ready
+// ========== STARTUP ==========
 document.addEventListener("DOMContentLoaded", () => {
   init();
 });
