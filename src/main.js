@@ -1,12 +1,16 @@
 /*****************************************************
- * main.js (Simplified + Draco, Real Car Controls)
- * Demonstrates:
- *   - Basic Three.js + Cannon.js scene
- *   - Ground plane
- *   - A single user car loaded from a Draco-compressed GLB
- *   - Minimal joystick for forward/back/left/right control
- *   - Start Screen hidden after pressing "Play"
- *   - "Real car" controls (accelerate + brake => potential reverse)
+ * main.js (Refined Controls + Obstacle Collisions)
+ *
+ * 1) Car movement:
+ *    - Steering via joystick (left/right).
+ *    - Two on-screen buttons for Accelerate and Brake/Reverse.
+ *    - Real-car style acceleration + braking logic.
+ *
+ * 2) Obstacles:
+ *    - Placed on the road to test collisions.
+ *    - Display "Collision!" overlay + console log on impact.
+ *
+ * 3) Draco-compressed car model loaded with GLTF + DRACOLoader.
  *****************************************************/
 
 // ========== Imports ==========
@@ -22,42 +26,45 @@ let carMesh, carBody;
 let joystickBase, joystickKnob;
 let joystickActive = false;
 let joystickMaxDistance = 0;
-let joystickX = 0,
-  joystickY = 0;
+let joystickX = 0; // Only used for steering
+// We removed joystickY usage for forward/back
 
+// Buttons for accelerate/brake
+let accelerateButton, brakeButton;
 let accelerateInput = false;
-let brakeInput = false; // "decelerate" -> now a brake that can lead to reverse
+let brakeInput = false;
 let moveLeft = false;
 let moveRight = false;
 
-// Some basic "car-like" constraints
-// Real cars can definitely exceed 20 m/s, but let's keep it smaller for demo
-const MAX_FORWARD_SPEED = 20; // m/s ~ 72 km/h
-const MAX_REVERSE_SPEED = 5;  // m/s ~ 18 km/h
-
-// We define an "engine power" for forward acceleration, and a "brake power" for deceleration/reverse
+// Basic car constraints
+const MAX_FORWARD_SPEED = 20; // m/s (~72 km/h)
+const MAX_REVERSE_SPEED = 5;  // m/s (~18 km/h)
 const ENGINE_FORCE = 10;
 const BRAKE_FORCE = 8;
-
-// This base speed is where the car tries to come to rest if no inputs
-// (like rolling friction)
-let idleSpeed = 0; 
-// If you prefer a small rolling speed, you could set idleSpeed = 2 or so.
+const idleSpeed = 0;  // if you want slow rolling, set > 0
 
 let previousTime = 0;
 let animationId;
+
+// Obstacles
+let obstacles = [];
+let obstacleBodies = [];
+let obstacleSize = 2; // Each obstacle is 2x2 in XZ
+let collisionIndicator; // For on-screen "Collision!" message
 
 // ========== INIT ==========
 function init() {
   initScene();
   initPhysics();
   initEnvironment();
-  loadCarModelWithDraco(); // Load a Draco-compressed .glb
+  spawnObstacles(); // Create a few obstacles
+  loadCarModelWithDraco();
 
   initJoystick();
+  initButtons();
   window.addEventListener("resize", onWindowResize, false);
 
-  // Hook up the "Start" button to hide the start screen
+  // Hide the "Start" screen after pressing play
   const startScreen = document.getElementById("start-screen");
   const playButton = document.getElementById("play-button");
   if (playButton) {
@@ -68,6 +75,9 @@ function init() {
     });
   }
 
+  // We'll show collisions in overlay
+  collisionIndicator = document.getElementById("collisionIndicator");
+
   previousTime = Date.now();
   animate();
 }
@@ -75,7 +85,7 @@ function init() {
 // ========== SCENE SETUP ==========
 function initScene() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87ceeb); // sky-blue
+  scene.background = new THREE.Color(0x87ceeb);
 
   camera = new THREE.PerspectiveCamera(
     75,
@@ -115,7 +125,7 @@ function initPhysics() {
   });
   physicsWorld.solver.iterations = 10;
 
-  // Ground plane (infinite)
+  // Ground plane
   const groundBody = new CANNON.Body({ mass: 0 });
   const groundShape = new CANNON.Plane();
   groundBody.addShape(groundShape);
@@ -124,9 +134,9 @@ function initPhysics() {
   physicsWorld.addBody(groundBody);
 }
 
-// ========== ENVIRONMENT ==========
+// ========== ENVIRONMENT (Road) ==========
 function initEnvironment() {
-  // Simple visual ground
+  // Simple large plane in Three.js
   const groundSize = 200;
   const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
   const groundMat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
@@ -136,10 +146,47 @@ function initEnvironment() {
   scene.add(groundMesh);
 }
 
+// ========== OBSTACLES ==========
+function spawnObstacles() {
+  // We'll place a few box obstacles along the road
+  // Hardcode or randomize positions
+  const obstaclePositions = [
+    { x: 1, z: 20 },
+    { x: -2, z: 35 },
+    { x: 2, z: 50 }
+  ];
+
+  for (let pos of obstaclePositions) {
+    // THREE mesh
+    const geo = new THREE.BoxGeometry(obstacleSize, obstacleSize, obstacleSize);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+    const boxMesh = new THREE.Mesh(geo, mat);
+    boxMesh.castShadow = true;
+    boxMesh.receiveShadow = true;
+
+    // Place above ground so it doesn't intersect
+    boxMesh.position.set(pos.x, obstacleSize / 2, pos.z);
+    scene.add(boxMesh);
+
+    // Cannon body
+    const halfSize = obstacleSize / 2;
+    const shape = new CANNON.Box(new CANNON.Vec3(halfSize, halfSize, halfSize));
+    const body = new CANNON.Body({
+      mass: 0, // static obstacle
+      shape: shape,
+      position: new CANNON.Vec3(pos.x, obstacleSize / 2, pos.z)
+    });
+    physicsWorld.addBody(body);
+
+    // Keep reference
+    obstacles.push(boxMesh);
+    obstacleBodies.push(body);
+  }
+}
+
 // ========== LOAD DRACO-COMPRESSED GLB ==========
 function loadCarModelWithDraco() {
   const gltfLoader = new GLTFLoader();
-
   const dracoLoader = new DRACOLoader();
   dracoLoader.setDecoderPath("/draco/");
   gltfLoader.setDRACOLoader(dracoLoader);
@@ -158,7 +205,6 @@ function loadCarModelWithDraco() {
         }
       });
 
-      // Simple box shape for the body
       const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
       carBody = new CANNON.Body({
         mass: 100,
@@ -168,8 +214,15 @@ function loadCarModelWithDraco() {
         angularDamping: 0.6,
       });
       carBody.fixedRotation = true;
-      physicsWorld.addBody(carBody);
 
+      // Add collision event to detect obstacles
+      carBody.addEventListener("collide", (evt) => {
+        // If collided with an obstacle
+        // (In a more advanced approach, we might check evt.body userData)
+        handleCollision(evt);
+      });
+
+      physicsWorld.addBody(carBody);
       carMesh.position.set(0, 1.1, 0);
     },
     undefined,
@@ -196,12 +249,28 @@ function createFallbackCar() {
     angularDamping: 0.6,
   });
   carBody.fixedRotation = true;
+  carBody.addEventListener("collide", (evt) => {
+    handleCollision(evt);
+  });
   physicsWorld.addBody(carBody);
-
   carMesh.position.set(0, 1.1, 0);
 }
 
-// ========== JOYSTICK SETUP (Real-Car Approach) ==========
+// ========== COLLISION HANDLER ==========
+function handleCollision(evt) {
+  console.log("Car collided with: ", evt.body);
+  // Show collision overlay for a moment
+  if (collisionIndicator) {
+    collisionIndicator.style.display = "block";
+    collisionIndicator.textContent = "Collision!";
+    // Hide after 1 second
+    setTimeout(() => {
+      collisionIndicator.style.display = "none";
+    }, 1000);
+  }
+}
+
+// ========== JOYSTICK (Steering Only) ==========
 function initJoystick() {
   joystickBase = document.getElementById("joystick-base");
   joystickKnob = document.getElementById("joystick-knob");
@@ -248,12 +317,8 @@ function onJoystickEnd(e) {
   setTimeout(() => {
     joystickKnob.style.transition = "transform 0.1s ease";
     joystickX = 0;
-    joystickY = 0;
   }, 300);
 
-  // Reset inputs
-  accelerateInput = false;
-  brakeInput = false;
   moveLeft = false;
   moveRight = false;
 }
@@ -275,22 +340,57 @@ function updateJoystick(e) {
   const angle = Math.atan2(y, x);
   const clampedDist = Math.min(dist, joystickMaxDistance);
 
+  // We only really care about the horizontal direction for steering
   joystickX = (clampedDist * Math.cos(angle)) / joystickMaxDistance;
-  joystickY = (clampedDist * Math.sin(angle)) / joystickMaxDistance;
 
-  // Move the knob
-  joystickKnob.style.transform = `translate(${
-    joystickX * joystickMaxDistance * 0.6
-  }px, ${joystickY * joystickMaxDistance * 0.6}px)`;
+  // Move the knob horizontally
+  joystickKnob.style.transform = `translateX(${joystickX * joystickMaxDistance * 0.6}px)`;
 
   const deadZone = 0.2;
-  // For "car" logic:
-  // - Pull joystick down => accelerate
-  // - Pull joystick up => brake (and possibly reverse)
-  accelerateInput = joystickY > deadZone;
-  brakeInput = joystickY < -deadZone;
   moveLeft = joystickX < -deadZone;
   moveRight = joystickX > deadZone;
+}
+
+// ========== BUTTONS (Accelerate + Brake) ==========
+function initButtons() {
+  accelerateButton = document.getElementById("accelerateButton");
+  brakeButton = document.getElementById("brakeButton");
+
+  if (accelerateButton) {
+    accelerateButton.addEventListener("mousedown", () => {
+      accelerateInput = true;
+    });
+    accelerateButton.addEventListener("mouseup", () => {
+      accelerateInput = false;
+    });
+    // For touch
+    accelerateButton.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      accelerateInput = true;
+    }, { passive: false });
+    accelerateButton.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      accelerateInput = false;
+    }, { passive: false });
+  }
+
+  if (brakeButton) {
+    brakeButton.addEventListener("mousedown", () => {
+      brakeInput = true;
+    });
+    brakeButton.addEventListener("mouseup", () => {
+      brakeInput = false;
+    });
+    // For touch
+    brakeButton.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      brakeInput = true;
+    }, { passive: false });
+    brakeButton.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      brakeInput = false;
+    }, { passive: false });
+  }
 }
 
 // ========== ANIMATION LOOP ==========
@@ -301,71 +401,60 @@ function animate() {
   const dt = (now - previousTime) / 1000;
   previousTime = now;
 
-  // Step physics
   physicsWorld.step(1 / 60, dt, 3);
 
   updateCarLogic(dt);
+  updateObstacleMeshes(); // sync obstacle mesh positions (if they are dynamic)
   renderer.render(scene, camera);
+}
+
+// If obstacles are dynamic, you can sync them here
+// Currently they are static, so no changes. Left for completeness.
+function updateObstacleMeshes() {
+  for (let i = 0; i < obstacles.length; i++) {
+    obstacles[i].position.copy(obstacleBodies[i].position);
+    obstacles[i].quaternion.copy(obstacleBodies[i].quaternion);
+  }
 }
 
 // ========== CAR LOGIC (Real-Car) ==========
 function updateCarLogic(dt) {
   if (!carBody) return;
 
-  // Current velocity in world coords
   let vx = carBody.velocity.x;
   let vz = carBody.velocity.z;
-
-  // The car’s forward direction is +Z in our example.
-  // We'll consider the "forward speed" as the projection of (vx, vz) onto +Z:
-  // i.e. speedAlongZ = (vx, vz) dot (0,1) but we only have x, z => dot with (0,1)? 
-  // Actually we can do the magnitude approach, or just treat z as the main speed.
-  // We'll do a simpler approach: "speed" ~ vz, if the car is facing +Z
-  // Because we haven't introduced car rotation about Y for actual heading, we can keep it simple.
-
-  // "speed" in m/s along Z
-  let speed = vz; 
+  let speed = vz; // Our "forward" direction is +Z
 
   // 1) ACCELERATE
   if (accelerateInput) {
-    // If we are going forward or slightly negative, push us forward
     speed += ENGINE_FORCE * dt;
     if (speed > MAX_FORWARD_SPEED) speed = MAX_FORWARD_SPEED;
   }
-
   // 2) BRAKE / REVERSE
   else if (brakeInput) {
-    // If speed > 0, brake
-    // If speed < 0, we are reversing already
-    speed -= BRAKE_FORCE * dt; 
+    speed -= BRAKE_FORCE * dt;
     if (speed < -MAX_REVERSE_SPEED) speed = -MAX_REVERSE_SPEED;
   }
-
-  // 3) If no input, gently approach idleSpeed
+  // 3) No input => approach idle speed
   else {
-    // Approach idleSpeed
     const diff = speed - idleSpeed;
     const brakeFactor = 2; 
-    // If diff > 0, slow down
     if (diff > 0) {
       speed -= brakeFactor * dt;
       if (speed < idleSpeed) speed = idleSpeed;
-    }
-    // if diff < 0, speed up to idle
-    else if (diff < 0) {
+    } else if (diff < 0) {
       speed += brakeFactor * dt;
       if (speed > idleSpeed) speed = idleSpeed;
     }
   }
 
-  // STEERING
+  // Steering from joystick
   let sideSpeed = vx;
   if (moveLeft) {
     sideSpeed = -5;
   } else if (moveRight) {
     sideSpeed = 5;
   } else {
-    // Dampen side velocity
     sideSpeed *= 0.9;
     if (Math.abs(sideSpeed) < 0.05) {
       sideSpeed = 0;
@@ -381,7 +470,6 @@ function updateCarLogic(dt) {
     carMesh.position.copy(carBody.position);
     carMesh.quaternion.copy(carBody.quaternion);
   }
-
   updateCamera();
 }
 
@@ -396,7 +484,7 @@ function updateCamera() {
   camera.lookAt(carBody.position.x, carBody.position.y, carBody.position.z);
 }
 
-// ========== EXPORTS OR STARTUP ==========
+// ========== BOOTSTRAP ==========
 document.addEventListener("DOMContentLoaded", () => {
   init();
 });
