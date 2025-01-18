@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    minify: 'terser',
+    minify: true,
     sourcemap: true,
     rollupOptions: {
       output: {
