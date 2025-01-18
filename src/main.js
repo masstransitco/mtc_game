@@ -24,6 +24,7 @@ let carMesh, carBody;
 
 // Steering ring
 let steeringBase, steeringKnob;
+let steeringActive = false; // Declare globally
 let steeringAngle = 0; // -1..+1
 
 // Buttons
@@ -43,7 +44,7 @@ const STEER_MAX_ANGLE = Math.PI / 4;
 
 // Orbit
 let orbitAngle = 0;
-let orbitActive = false;
+let orbitActiveCamera = false; // Renamed to avoid confusion
 let orbitBouncingBack = false;
 let orbitAngleOnRelease = 0;
 let orbitDragStartX = 0;
@@ -138,7 +139,7 @@ function initPhysics() {
   physicsWorld.addBody(groundBody);
 }
 
-// ========== ENVIRONMENT ========== 
+// ========== ENVIRONMENT ==========
 function initEnvironment() {
   const groundSize = 200;
   const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
@@ -149,8 +150,8 @@ function initEnvironment() {
   scene.add(groundMesh);
 }
 
-// Obstacles
-let obstacles = [], obstacleBodies = [];
+// ========== OBSTACLES ==========
+let obstaclesList = [], obstacleBodies = [];
 function spawnObstacles() {
   const positions = [
     { x: 0, z: 30 },
@@ -159,23 +160,23 @@ function spawnObstacles() {
     { x: 5, z: 90 },
     { x: -5, z: 110 },
   ];
-  for (let p of positions) {
+  for (let pos of positions) {
     const size = 2;
     const boxGeometry = new THREE.BoxGeometry(size, size, size);
     const boxMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 }); // Gray
     const boxMesh = new THREE.Mesh(boxGeometry, boxMaterial);
     boxMesh.castShadow = true;
     boxMesh.receiveShadow = true;
-    boxMesh.position.set(p.x, size / 2, p.z);
+    boxMesh.position.set(pos.x, size / 2, pos.z);
     scene.add(boxMesh);
 
     // Cannon Body
     const boxShape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
     const boxBody = new CANNON.Body({ mass: 0, shape: boxShape });
-    boxBody.position.set(p.x, size / 2, p.z);
+    boxBody.position.set(pos.x, size / 2, pos.z);
     physicsWorld.addBody(boxBody);
 
-    obstacles.push(boxMesh);
+    obstaclesList.push(boxMesh);
     obstacleBodies.push(boxBody);
   }
 }
@@ -451,11 +452,11 @@ function initCameraOrbit() {
 }
 
 function orbitStart(e) {
-  const ignore = ["joystick-base", "joystick-knob", "accelerateButton", "brakeButton"];
-  if (ignore.includes(e.target.id)) return;
+  const ignoreIds = ["joystick-base", "joystick-knob", "accelerateButton", "brakeButton"];
+  if (ignoreIds.includes(e.target.id)) return;
 
   e.preventDefault();
-  orbitActive = true;
+  orbitActiveCamera = true;
   orbitBouncingBack = false;
 
   orbitDragStartX = e.clientX || (e.touches && e.touches[0].clientX);
@@ -467,7 +468,7 @@ function orbitStart(e) {
 }
 
 function orbitMove(e) {
-  if (!orbitActive) return;
+  if (!orbitActiveCamera) return;
   const clientX = e.clientX || (e.touches && e.touches[0].clientX);
   const deltaX = clientX - orbitDragStartX;
   orbitDragStartX = clientX;
@@ -475,8 +476,8 @@ function orbitMove(e) {
 }
 
 function orbitEnd(e) {
-  if (!orbitActive) return;
-  orbitActive = false;
+  if (!orbitActiveCamera) return;
+  orbitActiveCamera = false;
 
   document.removeEventListener("mousemove", orbitMove);
   document.removeEventListener("touchmove", orbitMove);
@@ -524,8 +525,7 @@ function updateCarLogic(dt) {
 
   // 2. Apply Forces for Acceleration & Braking
   // Define forward direction based on current heading
-  // Invert forwardVec due to car rotation
-  const forwardVec = new CANNON.Vec3(-Math.sin(newHeading), 0, -Math.cos(newHeading));
+  const forwardVec = new CANNON.Vec3(-Math.sin(newHeading), 0, -Math.cos(newHeading)); // Adjusted for rotation
 
   // Calculate current speed along forward direction
   const vel = carBody.velocity.clone();
@@ -586,7 +586,7 @@ function updateCamera(dt) {
   if (!carBody) return;
 
   // Handle bounce-back if user has stopped orbiting
-  if (!orbitActive && orbitBouncingBack) {
+  if (!orbitActiveCamera && orbitBouncingBack) {
     const t = (Date.now() - orbitLerpStart) / 1000; // seconds elapsed
     const bounceDuration = 1; // seconds
 
