@@ -162,13 +162,13 @@ function createRoad() {
   path.add(curve1);
 
   // Create Road Geometry using TubeGeometry for elevation
-  const roadGeometry = new THREE.TubeGeometry(path, segments, roadWidth / 2, 8, false);
+  roadMesh = new THREE.TubeGeometry(path, segments, roadWidth / 2, 8, false);
   const roadMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 }); // Dark Gray
-  roadMesh = new THREE.Mesh(roadGeometry, roadMaterial);
-  roadMesh.rotation.x = -Math.PI / 2; // Horizontal
-  roadMesh.receiveShadow = true;
-  roadMesh.castShadow = true;
-  scene.add(roadMesh);
+  const roadMeshObj = new THREE.Mesh(roadMesh, roadMaterial);
+  roadMeshObj.rotation.x = -Math.PI / 2; // Horizontal
+  roadMeshObj.receiveShadow = true;
+  roadMeshObj.castShadow = true;
+  scene.add(roadMeshObj);
 
   // Add Physics for the Road
   // For simplicity, we'll use multiple CANNON.Plane shapes to approximate the road's surface
@@ -178,19 +178,10 @@ function createRoad() {
 
   for (let i = 0; i < roadSegments; i++) {
     const planeShape = new CANNON.Plane();
-    const planeBody = new CANNON.Body({ mass: 0 });
-    planeBody.addShape(planeShape);
-
-    // Position each plane segment along the road
-    const zPos = (i + 0.5) * segmentLength;
-    planeBody.position.set(0, 0, zPos);
-
-    // Rotate planes to match the road bends (simplified as flat for this example)
-    planeBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-
-    roadBody.addShape(planeShape, new CANNON.Vec3(0, 0, zPos));
+    roadBody.addShape(planeShape, new CANNON.Vec3(0, 0, (i + 0.5) * segmentLength));
   }
 
+  roadBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
   physicsWorld.addBody(roadBody);
 }
 
@@ -237,7 +228,7 @@ function loadCarWithDraco() {
   loader.setDRACOLoader(dracoLoader);
 
   loader.load(
-    "public/MTC.glb", // Correct path to the car model
+    "/MTC.glb", // Adjusted path
     (gltf) => {
       carMesh = gltf.scene;
       carMesh.scale.set(2, 2, 2);
