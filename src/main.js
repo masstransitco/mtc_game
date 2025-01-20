@@ -237,7 +237,7 @@ function loadCarWithDraco() {
   loader.setDRACOLoader(dracoLoader);
 
   loader.load(
-    "public/car1.glb", // Correct path to the car model
+    "public/MTC.glb", // Correct path to the car model
     (gltf) => {
       carMesh = gltf.scene;
       carMesh.scale.set(2, 2, 2);
